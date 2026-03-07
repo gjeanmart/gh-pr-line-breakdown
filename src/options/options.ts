@@ -1,6 +1,7 @@
 import { loadConfig, saveConfig, DEFAULT_CONFIG, type Category, type Config } from "../config.js";
 
 let config: Config = { categories: [] };
+let dragSrcIndex: number | null = null;
 
 async function init(): Promise<void> {
   config = await loadConfig();
@@ -27,18 +28,46 @@ function renderCategories(): void {
       ? `<button class="btn-remove" data-action="remove">Remove</button>`
       : "";
 
+    card.setAttribute("draggable", "true");
     card.innerHTML = `
       <div class="category-header">
-        <input type="text" class="cat-name" value="${escapeAttr(cat.name)}" placeholder="Category name" />
+        <span class="drag-handle" title="Drag to reorder">&#8942;&#8942;</span>
+        <input type="text" class="cat-name" draggable="false" value="${escapeAttr(cat.name)}" placeholder="Category name" />
         ${fallbackBadge}
         ${removeBtn}
       </div>
       <label>Glob patterns (one per line)</label>
-      <textarea class="cat-patterns" rows="4">${escapeHtml(cat.patterns.join("\n"))}</textarea>
+      <textarea class="cat-patterns" draggable="false" rows="4">${escapeHtml(cat.patterns.join("\n"))}</textarea>
     `;
 
     card.querySelector("[data-action='remove']")?.addEventListener("click", () => {
       config.categories.splice(index, 1);
+      renderCategories();
+    });
+
+    card.addEventListener("dragstart", (e) => {
+      dragSrcIndex = index;
+      e.dataTransfer!.effectAllowed = "move";
+      requestAnimationFrame(() => card.classList.add("dragging"));
+    });
+    card.addEventListener("dragend", () => {
+      card.classList.remove("dragging");
+      document.querySelectorAll(".category-card").forEach((c) => c.classList.remove("drag-over"));
+    });
+    card.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer!.dropEffect = "move";
+      document.querySelectorAll(".category-card").forEach((c) => c.classList.remove("drag-over"));
+      if (dragSrcIndex !== index) card.classList.add("drag-over");
+    });
+    card.addEventListener("drop", (e) => {
+      e.preventDefault();
+      card.classList.remove("drag-over");
+      if (dragSrcIndex === null || dragSrcIndex === index) return;
+      readFormIntoConfig();
+      const [moved] = config.categories.splice(dragSrcIndex, 1);
+      config.categories.splice(index, 0, moved);
+      dragSrcIndex = null;
       renderCategories();
     });
 
@@ -76,8 +105,7 @@ function onReset(): void {
 
 function onAddCategory(): void {
   readFormIntoConfig();
-  // Insert before the fallback category (last one)
-  const insertAt = Math.max(0, config.categories.length - 1);
+  const insertAt = config.categories.length;
   config.categories.splice(insertAt, 0, {
     name: "New Category",
     patterns: [],

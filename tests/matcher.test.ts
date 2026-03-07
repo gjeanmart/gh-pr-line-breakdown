@@ -3,7 +3,7 @@ import { classifyFile, buildBreakdown } from "../src/matcher.js";
 import { DEFAULT_CONFIG, type Category } from "../src/config.js";
 
 const { categories } = DEFAULT_CONFIG;
-const [tests, docs, generated, main] = categories;
+const [main, tests, docs, generated] = categories;
 
 describe("classifyFile", () => {
   it("classifies a spec file as Tests", () => {

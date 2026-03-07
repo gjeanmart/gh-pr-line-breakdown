@@ -239,6 +239,29 @@ textarea:focus {
 }
 .btn-add:hover { background: #ddf4ff; }
 
+/* ── Drag and drop ── */
+.drag-handle {
+  color: #8c959f;
+  font-size: 15px;
+  cursor: grab;
+  padding: 0 2px;
+  user-select: none;
+  flex-shrink: 0;
+  letter-spacing: -2px;
+}
+
+.drag-handle:active { cursor: grabbing; }
+
+.category-card.dragging {
+  opacity: 0.4;
+}
+
+.category-card.drag-over {
+  border-color: #0969da;
+  border-left-color: #0969da;
+  background: #f0f6ff;
+}
+
 /* ── Toast ── */
 .toast {
   display: none;

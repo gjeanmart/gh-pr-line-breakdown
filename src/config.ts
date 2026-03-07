@@ -12,6 +12,11 @@ export type Config = {
 export const DEFAULT_CONFIG: Config = {
   categories: [
     {
+      name: "Main",
+      patterns: ["**/*"],
+      fallback: true,
+    },
+    {
       name: "Tests",
       patterns: [
         "**/*.spec.ts",
@@ -64,11 +69,6 @@ export const DEFAULT_CONFIG: Config = {
         "**/*.pyc",
         "**/*.pyo",
       ],
-    },
-    {
-      name: "Main",
-      patterns: ["**/*"],
-      fallback: true,
     },
   ],
 };

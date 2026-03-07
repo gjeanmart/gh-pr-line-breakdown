@@ -11,10 +11,10 @@ The extension fetches the list of changed files from the GitHub REST API and cla
 ```
 +-------------------------------------------------------------------------+
 | Line Breakdown                              1,234 lines changed +980 -254|
+| Main        ████████████░░░░░░░░  ██████████    +420 -174   (48%)       |
 | Tests       ░░░░░░░░░░░░░░░░░░░░  ████████████  +320   -0   (26%)       |
 | Docs        ░░░░░░░░░░░░░░░░░░░░  ██            +40    -0    (3%)       |
 | Generated   ░░░░░░░░░░░░░░░░░░░░  ██████████    +200  -80   (22%)       |
-| Main        ████████████░░░░░░░░  ██████████    +420 -174   (48%)       |
 +-------------------------------------------------------------------------+
 ```
 
@@ -37,20 +37,20 @@ The token is stored only in your browser via `chrome.storage.local` (on-device o
 
 ## Categories
 
-Categories are evaluated in order — the first matching pattern wins. The last category is the fallback (catches everything not matched above).
+Categories are evaluated in order — the first matching pattern wins. The category marked as fallback catches everything not matched above.
 
 Default categories:
 
 | Category | Matches |
 |---|---|
+| **Main** (fallback) | Everything else |
 | **Tests** | `*.spec.ts`, `*.test.ts`, `*.spec.tsx`, `*.test.tsx`, `__tests__/**`, `test_*.py`, `*_test.py`, etc. |
 | **Documentation** | `*.md`, `*.rst`, `*.svg`, `docs/**`, images, diagrams |
 | **Generated / Other** | Lock files, `*.snap`, `dist/**`, `build/**`, `.next/**`, Python bytecode |
-| **Main** (fallback) | Everything else |
 
 ### Customizing categories
 
-Open the extension options page to add, remove, or reorder categories and their glob patterns (one pattern per line). Changes take effect immediately on the next PR page load.
+Open the extension options page to add, remove, reorder (drag and drop), or edit the glob patterns of any category (one pattern per line). Changes take effect immediately on the next PR page load.
 
 ## Build
 

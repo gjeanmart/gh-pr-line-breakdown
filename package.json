@@ -1,0 +1,21 @@
+{
+  "name": "gh-pr-line-breakdown",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "vitest run",
+    "dev": "node --watch build.mjs"
+  },
+  "dependencies": {
+    "minimatch": "^9.0.4"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "@types/minimatch": "^5.1.2",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.11",
+    "vitest": "^1.6.0"
+  }
+}

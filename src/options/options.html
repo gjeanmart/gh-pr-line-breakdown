@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PR Line Breakdown — Options</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <div class="container">
+
+    <div class="page-header">
+      <h1>&#128202; PR Line Breakdown</h1>
+      <p>Configure categories for classifying changed lines in GitHub PRs.</p>
+    </div>
+
+    <div class="card">
+      <p class="card-title">GitHub Token</p>
+      <p class="card-desc">
+        Required for <strong>private repos</strong>. On public repos, omitting it works but is
+        rate-limited to 60 API calls/hour. Needs <code>repo</code> scope for private repos,
+        no scope for public. Stored only in your browser (not synced across devices).
+      </p>
+      <input type="password" id="github-token" placeholder="ghp_…" />
+    </div>
+
+    <div class="section-header">
+      <span class="section-label">Categories</span>
+    </div>
+
+    <div id="categories" class="categories"></div>
+
+    <div class="actions">
+      <button id="btn-add" class="btn btn-add">+ Add category</button>
+      <button id="btn-save" class="btn btn-primary">Save</button>
+      <button id="btn-reset" class="btn btn-secondary">Reset to defaults</button>
+    </div>
+
+  </div>
+
+  <div id="toast" class="toast">Settings saved.</div>
+
+  <script type="module" src="options.js"></script>
+</body>
+</html>

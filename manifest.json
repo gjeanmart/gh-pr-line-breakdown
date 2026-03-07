@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "GitHub PR Line Breakdown",
+  "version": "0.1.0",
+  "description": "Overlays a line-count breakdown widget on GitHub PR pages, categorizing changed lines into configurable buckets.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://github.com/*", "https://api.github.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://github.com/*"],
+      "js": ["content_script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "PR Line Breakdown"
+  },
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
+  }
+}

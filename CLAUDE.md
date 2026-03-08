@@ -160,6 +160,64 @@ To load in Chrome:
 
 ---
 
+## Releasing a new version
+
+### CI workflow (`.github/workflows/ci.yml`)
+
+Runs on every push to `main` and on every PR:
+- `npm ci` → `npm test` → `npm run build`
+
+### Release workflow (`.github/workflows/release.yml`)
+
+Triggered by pushing a `v*` tag. Steps:
+1. Run tests
+2. Strip `v` prefix from tag → patch `package.json` and `manifest.json` with the semver version
+3. `npm run build`
+4. `cd dist && zip -r ../gh-pr-line-breakdown-vX.Y.Z.zip .`
+5. Create GitHub Release with the zip + auto-generated release notes (`softprops/action-gh-release`)
+6. If `CHROME_EXTENSION_ID` secret is set: call the CWS Publish API (OAuth2 token exchange → upload zip → publish)
+
+### How to cut a release
+
+```bash
+# 1. Bump version in both files
+#    package.json  → "version": "X.Y.Z"
+#    manifest.json → "version": "X.Y.Z"
+git add package.json manifest.json
+git commit -m "chore: bump version to vX.Y.Z"
+git push origin main
+
+# 2. Tag and push — this triggers the release workflow
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
+
+The workflow overwrites the versions at build time from the tag, so step 1 is
+optional but keeps the repo in sync with what was shipped.
+
+### Required GitHub secrets for CWS auto-publish
+
+| Secret | Where to get it |
+|---|---|
+| `CHROME_EXTENSION_ID` | CWS Developer Dashboard URL |
+| `CHROME_CLIENT_ID` | Google Cloud Console → OAuth 2.0 client |
+| `CHROME_CLIENT_SECRET` | Google Cloud Console → OAuth 2.0 client |
+| `CHROME_REFRESH_TOKEN` | [OAuth Playground](https://developers.google.com/oauthplayground) with scope `https://www.googleapis.com/auth/chromewebstore` |
+
+If secrets are absent the workflow skips the CWS step — the zip is still attached
+to the GitHub Release for manual upload.
+
+### First-time CWS publish (manual)
+
+The CWS API can only **update** an existing listing. The first submission must be
+done manually:
+1. Go to [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole)
+2. Upload the zip, fill in store metadata (description, screenshots, privacy policy, category)
+3. Submit for review (can take a few days)
+4. Once approved, copy the Extension ID and set up the secrets above
+
+---
+
 ## Phases
 
 ### Phase 1 — PoC (done)
@@ -176,8 +234,8 @@ MutationObserver, GitHub API for file data.
 - [ ] Review and polish UI/UX design (widget + options page)
 - [ ] Add **file change count** per category alongside the line counts
 - [x] Move **Main** category to the top of the default order (or make order user-configurable)
-- [ ] CI/CD pipeline (GitHub Actions: build + test on every push)
-- [ ] Publish to the Chrome Web Store
+- [x] CI/CD pipeline (GitHub Actions: build + test on every push, release on `v*` tags)
+- [ ] Publish to the Chrome Web Store (first manual submission pending)
 - [ ] Expand test coverage — more edge cases in `matcher.test.ts`, integration-style tests
 
 ---

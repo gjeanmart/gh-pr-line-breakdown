@@ -53,6 +53,7 @@ async function main() {
   // ── Copy static HTML and manifest ─────────────────────────────────────────
   await mkdir(resolve(__dirname, "dist/popup"), { recursive: true });
   await mkdir(resolve(__dirname, "dist/options"), { recursive: true });
+  await mkdir(resolve(__dirname, "dist/icons"), { recursive: true });
 
   await Promise.all([
     copyFile(
@@ -70,6 +71,12 @@ async function main() {
     copyFile(
       resolve(__dirname, "src/options/options.css"),
       resolve(__dirname, "dist/options/options.css")
+    ),
+    ...[16, 32, 48, 128].map((size) =>
+      copyFile(
+        resolve(__dirname, `src/icons/icon${size}.png`),
+        resolve(__dirname, `dist/icons/icon${size}.png`)
+      )
     ),
   ]);
 

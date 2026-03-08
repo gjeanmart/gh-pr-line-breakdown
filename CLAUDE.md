@@ -66,6 +66,7 @@ type Category = {
 ```
 
 Default config (in `src/config.ts`):
+
 - **Tests** — `*.spec.ts`, `*.test.ts`, `*.spec.tsx`, `*.test.tsx`, `*.spec.js`,
   `*.test.js`, `*.spec.jsx`, `*.test.jsx`, `__tests__/**`, `__mocks__/**`,
   `test_*.py`, `*_test.py`, `tests/**/*.py`, `conftest.py`
@@ -94,6 +95,7 @@ scraping, which misses lazily-loaded files on large PRs.
 The widget is a hover popup anchored to the native GitHub `+N -N ████` diffstat element.
 
 **Anchor detection** (in order):
+
 1. `document.querySelector('[class*="diffStatesWrap"]')` — the Primer React element
    that wraps the `+610 -3 ████` line (most reliable)
 2. Fallback: walk up from `[role="tablist"]`, look for a sibling element containing
@@ -161,19 +163,22 @@ To load in Chrome:
 ## Phases
 
 ### Phase 1 — PoC (done)
+
 Prove DOM parsing works. Hardcoded categories, console.log output only.
 
 ### Phase 2 — MVP (done)
+
 Wildcard matching, options page, `chrome.storage.sync`, hover widget,
 MutationObserver, GitHub API for file data.
 
 ### Phase 3 — V1 (not started)
-- Review and polish UI/UX design (widget + options page)
-- Add **file change count** per category alongside the line counts
-- Move **Main** category to the top of the default order (or make order user-configurable)
-- CI/CD pipeline (GitHub Actions: build + test on every push)
-- Publish to the Chrome Web Store
-- Expand test coverage — more edge cases in `matcher.test.ts`, integration-style tests
+
+- [ ] Review and polish UI/UX design (widget + options page)
+- [ ] Add **file change count** per category alongside the line counts
+- [x] Move **Main** category to the top of the default order (or make order user-configurable)
+- [ ] CI/CD pipeline (GitHub Actions: build + test on every push)
+- [ ] Publish to the Chrome Web Store
+- [ ] Expand test coverage — more edge cases in `matcher.test.ts`, integration-style tests
 
 ---
 

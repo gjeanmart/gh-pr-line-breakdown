@@ -60,6 +60,53 @@ npm run build   # outputs to dist/
 npm run test    # unit tests (vitest)
 ```
 
+## Releasing a new version
+
+Releases are fully automated via GitHub Actions on version tags.
+
+### Steps
+
+1. Make sure all changes are merged into `main` and CI is green
+2. Bump the version in `package.json` and `manifest.json` to the new version (e.g. `1.1.0`)
+3. Commit and push:
+   ```bash
+   git add package.json manifest.json
+   git commit -m "chore: bump version to v1.1.0"
+   git push origin main
+   ```
+4. Tag and push:
+   ```bash
+   git tag v1.1.0
+   git push origin v1.1.0
+   ```
+
+The `release` GitHub Actions workflow will then automatically:
+- Run tests
+- Sync the version from the tag into `package.json` and `manifest.json`
+- Build the extension
+- Package `dist/` as `gh-pr-line-breakdown-v1.1.0.zip`
+- Create a GitHub Release with the zip attached and auto-generated release notes
+- Publish to the Chrome Web Store (if the required secrets are configured — see below)
+
+### Chrome Web Store secrets
+
+To enable automated CWS publishing, add these secrets to the GitHub repo
+(**Settings → Secrets and variables → Actions**):
+
+| Secret | Description |
+|---|---|
+| `CHROME_EXTENSION_ID` | The extension ID from the CWS dashboard URL |
+| `CHROME_CLIENT_ID` | OAuth 2.0 client ID from Google Cloud Console |
+| `CHROME_CLIENT_SECRET` | OAuth 2.0 client secret |
+| `CHROME_REFRESH_TOKEN` | Refresh token obtained via the OAuth playground |
+
+If these secrets are not set, the release zip is still created and attached to the GitHub Release — you can upload it manually to the CWS dashboard.
+
+> **Note:** The first version must always be submitted manually through the
+> [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole)
+> to create the listing, fill in the store metadata (description, screenshots, privacy policy),
+> and pass the initial review.
+
 ## Tech stack
 
 - TypeScript, Vite 5, vitest

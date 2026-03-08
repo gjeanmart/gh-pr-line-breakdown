@@ -44,7 +44,7 @@ function buildRows(
 
   return `
     <div class="header">
-      <span class="title">Line Breakdown</span>
+      <span class="title"><svg class="title-icon" width="14" height="14" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="16" y="20" width="88" height="16" rx="4" fill="#0969da"/><rect x="16" y="44" width="72" height="16" rx="4" fill="#1f6feb"/><rect x="16" y="68" width="52" height="16" rx="4" fill="#388bfd"/><rect x="16" y="92" width="32" height="16" rx="4" fill="#79c0ff"/></svg>Line Breakdown</span>
       <span class="totals">
         <span class="total-lines">${grandTotal.toLocaleString()} lines</span>
         <span class="total-added">+${totalAdded.toLocaleString()}</span>
@@ -194,9 +194,16 @@ const STYLES = `
   }
 
   .title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-size: 13px;
     font-weight: 600;
     color: #1f2328;
+  }
+
+  .title-icon {
+    flex-shrink: 0;
   }
 
   .totals {

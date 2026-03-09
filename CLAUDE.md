@@ -89,6 +89,10 @@ scraping, which misses lazily-loaded files on large PRs.
   Private repos require a `repo`-scoped token.
 - Results are **cached per PR path** (`cachedPrPath` / `cachedFiles`). Navigating to a
   different PR invalidates the cache.
+- On failure, `fetchPrFilesFromApi` returns a typed `ApiError` (not `null`) so the widget
+  can render a specific message. Mapping: `401` → `auth_required`, `403` with
+  `X-RateLimit-Remaining: 0` → `rate_limit`, other `403` / `404` → `not_accessible`,
+  `429` → `rate_limit`, network exception → `network`, anything else → `unknown`.
 
 ### Widget — hover popup on diffstat
 
@@ -113,7 +117,8 @@ duplicate listeners across React re-renders).
 **Loading pattern**: when a new PR is detected, `renderLoadingState()` auto-shows the
 popup immediately with a spinner (`autoShow: true`). Once the API call completes,
 `renderHeaderIcon()` updates the content in-place without auto-showing (`autoShow: false`),
-letting hover behaviour take over.
+letting hover behaviour take over. On API error, `renderError(kind)` auto-shows the popup
+with a contextual red message (also `autoShow: true`).
 
 **Anchor change detection**: GitHub's React re-renders can replace the anchor DOM node.
 The `currentAnchor` module variable tracks the last known anchor; if a new one is found,
@@ -165,11 +170,13 @@ To load in Chrome:
 ### CI workflow (`.github/workflows/ci.yml`)
 
 Runs on every push to `main` and on every PR:
+
 - `npm ci` → `npm test` → `npm run build`
 
 ### Release workflow (`.github/workflows/release.yml`)
 
 Triggered by pushing a `v*` tag. Steps:
+
 1. Run tests
 2. Strip `v` prefix from tag → patch `package.json` and `manifest.json` with the semver version
 3. `npm run build`
@@ -197,11 +204,11 @@ optional but keeps the repo in sync with what was shipped.
 
 ### Required GitHub secrets for CWS auto-publish
 
-| Secret | Where to get it |
-|---|---|
-| `CHROME_EXTENSION_ID` | CWS Developer Dashboard URL |
-| `CHROME_CLIENT_ID` | Google Cloud Console → OAuth 2.0 client |
-| `CHROME_CLIENT_SECRET` | Google Cloud Console → OAuth 2.0 client |
+| Secret                 | Where to get it                                                                                                               |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `CHROME_EXTENSION_ID`  | CWS Developer Dashboard URL                                                                                                   |
+| `CHROME_CLIENT_ID`     | Google Cloud Console → OAuth 2.0 client                                                                                       |
+| `CHROME_CLIENT_SECRET` | Google Cloud Console → OAuth 2.0 client                                                                                       |
 | `CHROME_REFRESH_TOKEN` | [OAuth Playground](https://developers.google.com/oauthplayground) with scope `https://www.googleapis.com/auth/chromewebstore` |
 
 If secrets are absent the workflow skips the CWS step — the zip is still attached
@@ -211,6 +218,7 @@ to the GitHub Release for manual upload.
 
 The CWS API can only **update** an existing listing. The first submission must be
 done manually:
+
 1. Go to [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole)
 2. Upload the zip, fill in store metadata (description, screenshots, privacy policy, category)
 3. Submit for review (can take a few days)
@@ -237,6 +245,9 @@ MutationObserver, GitHub API for file data.
 - [x] CI/CD pipeline (GitHub Actions: build + test on every push, release on `v*` tags)
 - [ ] Publish to the Chrome Web Store (first manual submission pending)
 - [ ] Expand test coverage — more edge cases in `matcher.test.ts`, integration-style tests
+- [ ] Export and Import
+- [ ] Manage specific config per repo
+- [ ] Show breakdown in the extansion popup
 
 ---
 

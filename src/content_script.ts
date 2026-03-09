@@ -1,6 +1,6 @@
 import { loadConfig } from "./config.js";
 import { buildBreakdown } from "./matcher.js";
-import { renderHeaderIcon, renderLoadingState } from "./widget.js";
+import { renderHeaderIcon, renderLoadingState, renderError } from "./widget.js";
 import { fetchPrFilesFromApi } from "./github_api.js";
 import type { Config } from "./config.js";
 import type { FileEntry } from "./matcher.js";
@@ -11,6 +11,7 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 // API result cache — keyed by PR URL path, reset on navigation to a different PR
 let cachedPrPath: string | null = null;
 let cachedFiles: FileEntry[] | null = null;
+let cachedError: boolean = false;
 let lastHref = location.href;
 
 async function init(): Promise<void> {
@@ -29,10 +30,19 @@ async function runBreakdown(): Promise<void> {
     // New PR — show loading state immediately, then fetch
     cachedPrPath = prPath;
     cachedFiles = null;
+    cachedError = false;
     renderLoadingState();
-    cachedFiles = await fetchPrFilesFromApi(currentConfig.githubToken);
+    const result = await fetchPrFilesFromApi(currentConfig.githubToken);
+    if (!result) return;
+    if ("error" in result) {
+      cachedError = true;
+      renderError(result.error);
+      return;
+    }
+    cachedFiles = result.files;
   }
 
+  if (cachedError) return;
   if (!cachedFiles || cachedFiles.length === 0) return;
 
   const breakdown = buildBreakdown(cachedFiles, currentConfig.categories);
@@ -54,6 +64,7 @@ function observeChanges(): void {
       if (newPrPath !== cachedPrPath) {
         cachedPrPath = null;
         cachedFiles = null;
+        cachedError = false;
       }
     }
 

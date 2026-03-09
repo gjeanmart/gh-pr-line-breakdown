@@ -1,5 +1,6 @@
 import type { Category } from "./config.js";
 import type { CategoryStats } from "./matcher.js";
+import type { ApiError } from "./github_api.js";
 
 const HOST_ID = "gh-line-breakdown-host";
 
@@ -59,6 +60,19 @@ function buildRows(
 
 export function renderLoadingState(): void {
   setContent(`<div class="loading"><span class="spinner"></span>Loading\u2026</div>`, true);
+}
+
+const ERROR_MESSAGES: Record<ApiError, string> = {
+  rate_limit: "Rate limit reached \u2014 add a GitHub token in the options to increase your quota",
+  not_accessible: "Repository not accessible \u2014 a GitHub token with repo scope may be required",
+  auth_required: "Authentication required \u2014 add a GitHub token in the options",
+  network: "Network error \u2014 check your connection and try again",
+  unknown: "Failed to load PR data",
+};
+
+export function renderError(kind: ApiError): void {
+  const msg = ERROR_MESSAGES[kind];
+  setContent(`<div class="error"><span class="error-icon">&#9888;</span>${escapeHtml(msg)}</div>`, true);
 }
 
 export function renderHeaderIcon(
@@ -281,6 +295,23 @@ const STYLES = `
     padding: 2px 0;
     color: #656d76;
     font-size: 13px;
+  }
+
+  .error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 0;
+    color: #cf222e;
+    font-size: 13px;
+    max-width: 380px;
+    white-space: normal;
+    line-height: 1.4;
+  }
+
+  .error-icon {
+    flex-shrink: 0;
+    font-size: 14px;
   }
 
   .spinner {

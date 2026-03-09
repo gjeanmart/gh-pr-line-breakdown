@@ -8,6 +8,8 @@ A Chrome extension that shows a line-count breakdown widget on GitHub PR pages, 
 
 The extension fetches the list of changed files from the GitHub REST API and classifies each file against your configured categories using glob patterns. The results appear as a hover popup anchored to the native `+N -N ████` diffstat shown in the PR header — visible on every PR tab (Conversation, Commits, Checks, Files Changed).
 
+The popup header shows the total line and file counts across all categories. Each category row shows its file count, a proportional bar chart, added/removed line counts, and a percentage of total lines changed.
+
 ## Installation
 
 1. Clone this repo and run `npm install && npm run build`

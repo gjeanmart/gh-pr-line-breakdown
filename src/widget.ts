@@ -17,17 +17,20 @@ function buildRows(
   const grandTotal = categories.reduce((sum, cat) => sum + (breakdown.get(cat)?.total ?? 0), 0);
   const totalAdded = categories.reduce((sum, cat) => sum + (breakdown.get(cat)?.added ?? 0), 0);
   const totalRemoved = categories.reduce((sum, cat) => sum + (breakdown.get(cat)?.removed ?? 0), 0);
+  const totalFiles = categories.reduce((sum, cat) => sum + (breakdown.get(cat)?.files ?? 0), 0);
   const scale = Math.max(totalAdded, totalRemoved, 1);
 
   const rows = categories
     .map((cat) => {
-      const stats = breakdown.get(cat) ?? { added: 0, removed: 0, total: 0 };
+      const stats = breakdown.get(cat) ?? { added: 0, removed: 0, total: 0, files: 0 };
       const addedPct = (stats.added / scale) * 100;
       const removedPct = (stats.removed / scale) * 100;
       const pct = grandTotal > 0 ? Math.round((stats.total / grandTotal) * 100) : 0;
+      const fileLabel = stats.files === 1 ? "1 file" : `${stats.files.toLocaleString()} files`;
       return `
       <div class="row">
         <span class="cat-name">${escapeHtml(cat.name)}</span>
+        <span class="cat-files">${fileLabel}</span>
         <div class="bar-track">
           <div class="bar-half bar-left">
             <div class="bar-fill bar-removed" style="width:${removedPct.toFixed(1)}%"></div>
@@ -36,8 +39,7 @@ function buildRows(
             <div class="bar-fill bar-added" style="width:${addedPct.toFixed(1)}%"></div>
           </div>
         </div>
-        <span class="stat stat-added">+${stats.added.toLocaleString()}</span>
-        <span class="stat stat-removed">\u2212${stats.removed.toLocaleString()}</span>
+        <span class="stats"><span class="stat stat-added">+${stats.added.toLocaleString()}</span><span class="stat stat-removed">\u2212${stats.removed.toLocaleString()}</span></span>
         <span class="pct">${pct}%</span>
       </div>`;
     })
@@ -48,6 +50,7 @@ function buildRows(
       <span class="title"><svg class="title-icon" width="14" height="14" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="16" y="20" width="88" height="16" rx="4" fill="#0969da"/><rect x="16" y="44" width="72" height="16" rx="4" fill="#1f6feb"/><rect x="16" y="68" width="52" height="16" rx="4" fill="#388bfd"/><rect x="16" y="92" width="32" height="16" rx="4" fill="#79c0ff"/></svg>Line Breakdown</span>
       <span class="totals">
         <span class="total-lines">${grandTotal.toLocaleString()} lines</span>
+        <span class="total-files">${totalFiles.toLocaleString()} ${totalFiles === 1 ? "file" : "files"}</span>
         <span class="total-added">+${totalAdded.toLocaleString()}</span>
         <span class="total-removed">\u2212${totalRemoved.toLocaleString()}</span>
       </span>
@@ -228,8 +231,16 @@ const STYLES = `
   }
 
   .total-lines  { color: #656d76; }
+  .total-files  { color: #656d76; }
   .total-added  { color: #1a7f37; font-weight: 500; }
   .total-removed { color: #cf222e; font-weight: 500; }
+
+  .cat-files {
+    color: #656d76;
+    font-weight: 400;
+    font-size: 11px;
+    white-space: nowrap;
+  }
 
   .rows {
     display: flex;
@@ -239,8 +250,13 @@ const STYLES = `
 
   .row {
     display: grid;
-    grid-template-columns: 136px 1fr 54px 54px 32px;
+    grid-template-columns: 120px 56px 1fr auto 32px;
     align-items: center;
+    gap: 8px;
+  }
+
+  .stats {
+    display: flex;
     gap: 8px;
   }
 
@@ -276,6 +292,7 @@ const STYLES = `
     font-size: 12px;
     font-variant-numeric: tabular-nums;
     text-align: right;
+    min-width: 48px;
   }
 
   .stat-added   { color: #1a7f37; }

@@ -90,16 +90,19 @@ describe("buildBreakdown", () => {
     expect(mainStats.added).toBe(13);
     expect(mainStats.removed).toBe(6);
     expect(mainStats.total).toBe(19);
+    expect(mainStats.files).toBe(2);
 
     const testStats = result.get(tests)!;
     expect(testStats.added).toBe(20);
     expect(testStats.removed).toBe(0);
     expect(testStats.total).toBe(20);
+    expect(testStats.files).toBe(1);
 
     const genStats = result.get(generated)!;
     expect(genStats.added).toBe(100);
     expect(genStats.removed).toBe(50);
     expect(genStats.total).toBe(150);
+    expect(genStats.files).toBe(1);
   });
 
   it("returns zero stats for categories with no matching files", () => {
@@ -107,9 +110,11 @@ describe("buildBreakdown", () => {
     const result = buildBreakdown(files, categories);
 
     expect(result.get(tests)!.total).toBe(0);
+    expect(result.get(tests)!.files).toBe(0);
     expect(result.get(docs)!.total).toBe(0);
     expect(result.get(generated)!.total).toBe(0);
     expect(result.get(main)!.total).toBe(7);
+    expect(result.get(main)!.files).toBe(1);
   });
 
   it("handles an empty file list", () => {

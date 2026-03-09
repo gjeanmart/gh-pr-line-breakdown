@@ -1,6 +1,9 @@
 import type { FileEntry } from "./matcher.js";
 
-export async function fetchPrFilesFromApi(token?: string): Promise<FileEntry[] | null> {
+export type ApiError = "rate_limit" | "not_accessible" | "auth_required" | "network" | "unknown";
+export type ApiResult = { files: FileEntry[] } | { error: ApiError };
+
+export async function fetchPrFilesFromApi(token?: string): Promise<ApiResult | null> {
   const match = window.location.pathname.match(/^\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
   if (!match) return null;
   const [, owner, repo, pull] = match;
@@ -20,9 +23,20 @@ export async function fetchPrFilesFromApi(token?: string): Promise<FileEntry[] |
     try {
       res = await fetch(url, { headers });
     } catch {
-      return null;
+      return { error: "network" };
     }
-    if (!res.ok) return null;
+
+    if (!res.ok) {
+      if (res.status === 401) return { error: "auth_required" };
+      if (res.status === 404) return { error: "not_accessible" };
+      if (res.status === 429) return { error: "rate_limit" };
+      if (res.status === 403) {
+        const remaining = res.headers.get("X-RateLimit-Remaining");
+        if (remaining === "0") return { error: "rate_limit" };
+        return { error: "not_accessible" };
+      }
+      return { error: "unknown" };
+    }
 
     const batch: Array<{ filename: string; additions: number; deletions: number }> = await res.json();
     for (const f of batch) {
@@ -32,5 +46,5 @@ export async function fetchPrFilesFromApi(token?: string): Promise<FileEntry[] |
     page++;
   }
 
-  return files;
+  return { files };
 }

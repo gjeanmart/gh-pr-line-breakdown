@@ -41,8 +41,11 @@ Widget appears on hover over the native `+N -N ████` diffstat in the PR 
 
 ### Data source: GitHub REST API only (no DOM parsing for files)
 - `fetchPrFilesFromApi` in `github_api.ts` fetches paginated file list from GitHub API
+- Returns `ApiResult` (discriminated union: `{ files }` or `{ error: ApiError }`) — never bare `null` on HTTP errors
+- `ApiError` values: `rate_limit` | `not_accessible` | `auth_required` | `network` | `unknown`
+- HTTP mapping: 401→auth_required, 403+no-remaining→rate_limit, 403→not_accessible, 404→not_accessible, 429→rate_limit, network throw→network
 - Handles lazy-loaded large PRs correctly (DOM only shows visible files)
-- Results cached per PR path (`cachedPrPath` / `cachedFiles`) in `content_script.ts`
+- Results cached per PR path (`cachedPrPath` / `cachedFiles` / `cachedError`) in `content_script.ts`
 - SPA navigation detected via `location.href` comparison in MutationObserver
 
 ### Widget: Shadow DOM hover popup
@@ -52,8 +55,9 @@ Widget appears on hover over the native `+N -N ████` diffstat in the PR 
   cleanly when the anchor changes (avoids duplicate listeners across React re-renders)
 - Anchored to `[class*="diffStatesWrap"]` (Primer React diffstat element)
 - Fallback anchor: walk up from `[role="tablist"]`, find sibling with `.fgColor-success`
-- `autoShow: true` for loading state (spinner shown immediately on new PR)
+- `autoShow: true` for loading state (spinner shown immediately on new PR) and error state
 - `autoShow: false` for data render (hover to see, no flash on subsequent renders)
+- `renderError(kind: ApiError)` shows a red ⚠ message with copy specific to the error kind
 
 ### MutationObserver: always on document.body
 - NOT scoped to a specific element — `diff-comparison-viewer-container` only exists

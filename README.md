@@ -2,7 +2,7 @@
 
 A Chrome extension that shows a line-count breakdown widget on GitHub PR pages, categorizing changed lines into configurable buckets (Tests, Documentation, Generated, Main) based on glob patterns.
 
-![Screenshot](docs/screenshot.png)
+![Screenshot](docs/popup.png)
 
 ## How it works
 

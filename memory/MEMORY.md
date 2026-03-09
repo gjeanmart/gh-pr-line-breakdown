@@ -59,6 +59,14 @@ Widget appears on hover over the native `+N -N ████` diffstat in the PR 
 - `autoShow: false` for data render (hover to see, no flash on subsequent renders)
 - `renderError(kind: ApiError)` shows a red ⚠ message with copy specific to the error kind
 
+### Widget layout (row grid)
+- 5-column grid: `120px cat-name | 56px cat-files | 1fr bar-track | auto stats | 32px pct`
+- `cat-files` is a **separate grid column** (not inline in cat-name) — prevents truncation for long names like "Generated / Other"
+- `stats` is a flex container wrapping `.stat-added` + `.stat-removed` with `gap: 8px`
+- `.stat` has `min-width: 48px; text-align: right` for column alignment across rows
+- Header totals: lines · files · +added −removed (all in `.totals` flex row)
+- `CategoryStats.files` (added to type + `buildBreakdown`) drives both per-row and header file counts
+
 ### MutationObserver: always on document.body
 - NOT scoped to a specific element — `diff-comparison-viewer-container` only exists
   on the Files Changed tab and gets removed on tab switch, detaching scoped observers

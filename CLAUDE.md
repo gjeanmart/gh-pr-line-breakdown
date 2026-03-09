@@ -120,6 +120,14 @@ popup immediately with a spinner (`autoShow: true`). Once the API call completes
 letting hover behaviour take over. On API error, `renderError(kind)` auto-shows the popup
 with a contextual red message (also `autoShow: true`).
 
+**Widget layout** (5-column CSS grid per row):
+`120px cat-name | 56px cat-files | 1fr bar-track | auto stats | 32px pct`
+
+- Header shows: total lines · total files · +added −removed
+- Each row: category name | N files (gray, 11px) | bar | +added −removed (paired in a
+  flex container, `min-width: 48px` each for column alignment) | %
+- `CategoryStats` includes a `files` counter (incremented per file in `buildBreakdown`)
+
 **Anchor change detection**: GitHub's React re-renders can replace the anchor DOM node.
 The `currentAnchor` module variable tracks the last known anchor; if a new one is found,
 the event listeners are rebound via `AbortController`.

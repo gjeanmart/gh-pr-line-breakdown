@@ -10,6 +10,7 @@ export type CategoryStats = {
   added: number;
   removed: number;
   total: number;
+  files: number;
 };
 
 function globMatch(path: string, pattern: string): boolean {
@@ -64,7 +65,7 @@ export function buildBreakdown(
 ): Map<Category, CategoryStats> {
   const result = new Map<Category, CategoryStats>();
   for (const category of categories) {
-    result.set(category, { added: 0, removed: 0, total: 0 });
+    result.set(category, { added: 0, removed: 0, total: 0, files: 0 });
   }
 
   for (const file of files) {
@@ -73,6 +74,7 @@ export function buildBreakdown(
     stats.added += file.added;
     stats.removed += file.removed;
     stats.total += file.added + file.removed;
+    stats.files += 1;
   }
 
   return result;

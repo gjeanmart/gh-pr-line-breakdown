@@ -7,6 +7,7 @@ const HOST_ID = "gh-line-breakdown-host";
 let currentAnchor: Element | null = null;
 let shadowRoot: ShadowRoot | null = null;
 let listenerController: AbortController | null = null;
+let hideEmpty = true;
 
 // ── HTML builder ──────────────────────────────────────────────────────────────
 
@@ -27,8 +28,9 @@ function buildRows(
       const removedPct = (stats.removed / scale) * 100;
       const pct = grandTotal > 0 ? Math.round((stats.total / grandTotal) * 100) : 0;
       const fileLabel = stats.files === 1 ? "1 file" : `${stats.files.toLocaleString()} files`;
+      const emptyClass = stats.total === 0 ? " row--empty" : "";
       return `
-      <div class="row">
+      <div class="row${emptyClass}">
         <span class="cat-name">${escapeHtml(cat.name)}</span>
         <span class="cat-files">${fileLabel}</span>
         <div class="bar-track">
@@ -45,6 +47,14 @@ function buildRows(
     })
     .join("");
 
+  const emptyCount = categories.filter(
+    (cat) => (breakdown.get(cat)?.total ?? 0) === 0
+  ).length;
+  const footer =
+    emptyCount > 0
+      ? `<div class="footer"><button class="toggle-empty">${hideEmpty ? `Show ${emptyCount} empty` : "Hide empty"}</button></div>`
+      : "";
+
   return `
     <div class="header">
       <span class="title"><svg class="title-icon" width="14" height="14" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="16" y="20" width="88" height="16" rx="4" fill="#0969da"/><rect x="16" y="44" width="72" height="16" rx="4" fill="#1f6feb"/><rect x="16" y="68" width="52" height="16" rx="4" fill="#388bfd"/><rect x="16" y="92" width="32" height="16" rx="4" fill="#79c0ff"/></svg>Line Breakdown</span>
@@ -55,7 +65,8 @@ function buildRows(
         <span class="total-removed">\u2212${totalRemoved.toLocaleString()}</span>
       </span>
     </div>
-    <div class="rows">${rows}</div>
+    <div class="rows${hideEmpty ? " hide-empty" : ""}">${rows}</div>
+    ${footer}
   `;
 }
 
@@ -95,6 +106,16 @@ function setContent(html: string, autoShow: boolean): void {
 
   const shadow = ensureShadow();
   shadow.querySelector<HTMLElement>(".popup")!.innerHTML = html;
+
+  shadow.querySelector(".toggle-empty")?.addEventListener("click", () => {
+    hideEmpty = !hideEmpty;
+    shadow.querySelector(".rows")?.classList.toggle("hide-empty", hideEmpty);
+    const btn = shadow.querySelector<HTMLElement>(".toggle-empty");
+    if (btn) {
+      const n = shadow.querySelectorAll(".row--empty").length;
+      btn.textContent = hideEmpty ? `Show ${n} empty` : "Hide empty";
+    }
+  });
 
   const host = document.getElementById(HOST_ID) as HTMLElement;
 
@@ -303,6 +324,31 @@ const STYLES = `
     color: #656d76;
     text-align: right;
     font-variant-numeric: tabular-nums;
+  }
+
+  .rows.hide-empty .row--empty {
+    display: none;
+  }
+
+  .footer {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #eaeef2;
+    text-align: right;
+  }
+
+  .toggle-empty {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 11px;
+    color: #0969da;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .toggle-empty:hover {
+    text-decoration: underline;
   }
 
   .loading {

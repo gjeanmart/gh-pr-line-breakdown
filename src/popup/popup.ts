@@ -5,6 +5,7 @@ import type { FileEntry } from "../matcher.js";
 const PR_PATTERN = /^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+/;
 
 const content = document.getElementById("content")!;
+let hideEmpty = true;
 
 function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -28,8 +29,9 @@ function renderBreakdown(files: FileEntry[], categories: Category[]): void {
     const stats = breakdown.get(cat)!;
     const pct = grandTotal > 0 ? Math.round((stats.total / grandTotal) * 100) : 0;
     const fileLabel = stats.files === 1 ? "1 file" : `${stats.files.toLocaleString()} files`;
+    const emptyClass = stats.total === 0 ? " row--empty" : "";
     return `
-      <div class="row">
+      <div class="row${emptyClass}">
         <div class="cat-info">
           <span class="cat-name">${escapeHtml(cat.name)}</span>
           <span class="cat-files">${fileLabel}</span>
@@ -39,6 +41,11 @@ function renderBreakdown(files: FileEntry[], categories: Category[]): void {
         <span class="pct">${pct}%</span>
       </div>`;
   }).join("");
+
+  const emptyCount = categories.filter((cat) => (breakdown.get(cat)?.total ?? 0) === 0).length;
+  const footer = emptyCount > 0
+    ? `<div class="rows-footer"><button class="toggle-empty">${hideEmpty ? `Show ${emptyCount} empty` : "Hide empty"}</button></div>`
+    : "";
 
   const filesLabel = totalFiles === 1 ? "1 file" : `${totalFiles.toLocaleString()} files`;
 
@@ -51,7 +58,18 @@ function renderBreakdown(files: FileEntry[], categories: Category[]): void {
       <span class="bh-added">+${totalAdded.toLocaleString()}</span>
       <span class="bh-removed">\u2212${totalRemoved.toLocaleString()}</span>
     </div>
-    <div class="rows">${rows}</div>`;
+    <div class="rows${hideEmpty ? " hide-empty" : ""}">${rows}</div>
+    ${footer}`;
+
+  content.querySelector(".toggle-empty")?.addEventListener("click", () => {
+    hideEmpty = !hideEmpty;
+    content.querySelector(".rows")?.classList.toggle("hide-empty", hideEmpty);
+    const btn = content.querySelector<HTMLElement>(".toggle-empty");
+    if (btn) {
+      const n = content.querySelectorAll(".row--empty").length;
+      btn.textContent = hideEmpty ? `Show ${n} empty` : "Hide empty";
+    }
+  });
 }
 
 async function init(): Promise<void> {

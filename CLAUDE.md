@@ -73,6 +73,14 @@ Default config (in `src/config.ts`):
 - **Documentation** — `*.md`, `*.mdx`, `*.rst`, `*.txt`, images, diagrams, `docs/**`
 - **Generated / Other** — lock files, `*.snap`, `dist/**`, `build/**`, `.next/**`,
   Python bytecode
+- **CI/CD** — `.github/workflows/**`, `.circleci/**`, `Dockerfile*`,
+  `docker-compose*`, `.travis.yml`, `.drone.yml`, `Jenkinsfile`
+- **Infrastructure** — `*.tf`, `*.tfvars`, `terraform/**`, `k8s/**`,
+  `kubernetes/**`, `helm/**`, `charts/**`
+- **Config** — `.eslintrc*`, `.prettierrc*`, `tsconfig*.json`, `vite.config.*`,
+  `.editorconfig`, `.nvmrc`, `renovate.json`, `.dependabot/**`
+- **Database** — `migrations/**`, `db/migrate/**`, `seeds/**`, `fixtures/**`, `*.sql`
+- **Styles** — `*.css`, `*.scss`, `*.sass`, `*.less`, `styles/**`, `themes/**`
 - **Main** (fallback) — everything else
 
 ---

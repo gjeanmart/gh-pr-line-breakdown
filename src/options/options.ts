@@ -7,9 +7,23 @@ async function init(): Promise<void> {
   config = await loadConfig();
   (document.getElementById("github-token") as HTMLInputElement).value = config.githubToken ?? "";
   renderCategories();
-  document.getElementById("btn-save")!.addEventListener("click", onSave);
+
+  // Tab switching
+  document.querySelectorAll<HTMLButtonElement>(".tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
+      btn.classList.add("active");
+      document.getElementById(`tab-${btn.dataset.tab}`)!.classList.remove("hidden");
+    });
+  });
+
+  document.getElementById("btn-save")!.addEventListener("click", onSaveCategories);
   document.getElementById("btn-reset")!.addEventListener("click", onReset);
   document.getElementById("btn-add")!.addEventListener("click", onAddCategory);
+  document.getElementById("btn-save-settings")!.addEventListener("click", onSaveSettings);
+  document.getElementById("btn-export")!.addEventListener("click", onExport);
+  document.getElementById("import-file")!.addEventListener("change", onImport);
 }
 
 function renderCategories(): void {
@@ -90,8 +104,13 @@ function readFormIntoConfig(): void {
   config.categories = updated;
 }
 
-async function onSave(): Promise<void> {
+async function onSaveCategories(): Promise<void> {
   readFormIntoConfig();
+  await saveConfig(config);
+  showToast("Categories saved.");
+}
+
+async function onSaveSettings(): Promise<void> {
   const token = (document.getElementById("github-token") as HTMLInputElement).value.trim();
   config.githubToken = token || undefined;
   await saveConfig(config);
@@ -111,6 +130,58 @@ function onAddCategory(): void {
     patterns: [],
   });
   renderCategories();
+}
+
+function onExport(): void {
+  const exportData = { categories: config.categories };
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "gh-pr-line-breakdown-config.json";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function onImport(e: Event): void {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result as string);
+      if (
+        !parsed ||
+        typeof parsed !== "object" ||
+        !Array.isArray(parsed.categories) ||
+        parsed.categories.some(
+          (c: unknown) =>
+            typeof c !== "object" ||
+            c === null ||
+            typeof (c as Record<string, unknown>).name !== "string" ||
+            !Array.isArray((c as Record<string, unknown>).patterns)
+        )
+      ) {
+        showToast("Invalid config file.");
+        return;
+      }
+      readFormIntoConfig();
+      config.categories = parsed.categories as Category[];
+      renderCategories();
+      // Switch to Categories tab so the user sees the result
+      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
+      document.querySelector<HTMLButtonElement>('[data-tab="categories"]')!.classList.add("active");
+      document.getElementById("tab-categories")!.classList.remove("hidden");
+      showToast("Config imported. Review and save.");
+    } catch {
+      showToast("Failed to parse JSON file.");
+    } finally {
+      (e.target as HTMLInputElement).value = "";
+    }
+  };
+  reader.readAsText(file);
 }
 
 function showToast(message: string): void {

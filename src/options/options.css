@@ -41,6 +41,36 @@ body {
   font-size: 14px;
 }
 
+/* ── Tabs ── */
+.tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid #d0d7de;
+  margin-bottom: 20px;
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #656d76;
+  cursor: pointer;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.tab-btn:hover { color: #1f2328; }
+
+.tab-btn.active {
+  color: #1f2328;
+  border-bottom-color: #fd8c73;
+}
+
+.tab-panel.hidden { display: none; }
+
 /* ── Settings card ── */
 .card {
   background: #ffffff;
@@ -70,6 +100,12 @@ body {
   background: #eaeef2;
   padding: 1px 5px;
   border-radius: 4px;
+}
+
+/* ── File input ── */
+#import-file {
+  font-size: 13px;
+  color: #1f2328;
 }
 
 /* ── Token input ── */

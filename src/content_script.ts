@@ -78,4 +78,21 @@ function observeChanges(): void {
   observer.observe(document.body, { childList: true, subtree: true });
 }
 
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.type !== "getBreakdown") return;
+  if (!currentConfig || cachedPrPath === null) {
+    sendResponse({ status: "loading" });
+    return;
+  }
+  if (cachedError) {
+    sendResponse({ status: "error" });
+    return;
+  }
+  if (!cachedFiles) {
+    sendResponse({ status: "loading" });
+    return;
+  }
+  sendResponse({ status: "ready", files: cachedFiles, categories: currentConfig.categories });
+});
+
 init();

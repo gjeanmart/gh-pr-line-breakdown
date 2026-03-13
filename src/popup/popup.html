@@ -12,11 +12,106 @@
       color: #1f2328;
       background: #fff;
       margin: 0;
-      padding: 16px;
-      width: 260px;
+      padding: 14px 16px 16px;
+      width: 300px;
     }
-    h2 { font-size: 15px; margin: 0 0 6px; }
-    p { margin: 0 0 14px; color: #656d76; line-height: 1.5; }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #eaeef2;
+    }
+    .header img { display: block; flex-shrink: 0; }
+    .header-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1f2328;
+    }
+
+    #content { margin-bottom: 12px; min-height: 32px; }
+
+    .message {
+      color: #656d76;
+      font-size: 12px;
+      line-height: 1.5;
+      margin: 4px 0;
+    }
+
+    .breakdown-header {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #eaeef2;
+    }
+    .bh-lines  { color: #656d76; }
+    .bh-files  { color: #656d76; }
+    .bh-sep    { color: #d0d7de; }
+    .bh-spacer { flex: 1; }
+    .bh-added  { color: #1a7f37; font-weight: 500; }
+    .bh-removed { color: #cf222e; font-weight: 500; }
+
+    .rows { display: flex; flex-direction: column; gap: 5px; }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 52px 52px 30px;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .cat-info { min-width: 0; }
+    .cat-name {
+      display: block;
+      font-size: 12px;
+      color: #1f2328;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cat-files {
+      display: block;
+      font-size: 10px;
+      color: #656d76;
+    }
+
+    .stat {
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+    .stat-added   { color: #1a7f37; }
+    .stat-removed { color: #cf222e; }
+
+    .pct {
+      font-size: 11px;
+      color: #656d76;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .loading {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .spinner {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid #d0d7de;
+      border-top-color: #0969da;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
     .btn {
       display: block;
       width: 100%;
@@ -30,12 +125,35 @@
       text-align: center;
     }
     .btn:hover { background: #ddf4ff; }
+
+    .footer {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid #eaeef2;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: #8c959f;
+    }
+    .footer a {
+      color: #8c959f;
+      text-decoration: none;
+    }
+    .footer a:hover { color: #0969da; text-decoration: underline; }
   </style>
 </head>
 <body>
-  <h2>&#128202; PR Line Breakdown</h2>
-  <p>Categorizes changed lines in GitHub PRs using configurable glob patterns.</p>
+  <div class="header">
+    <img src="../icons/icon32.png" width="20" height="20" alt="" />
+    <span class="header-title">PR Line Breakdown</span>
+  </div>
+  <div id="content"></div>
   <button id="btn-options" class="btn">Open Options</button>
+  <div class="footer">
+    <span id="footer-version"></span>
+    <a id="footer-repo" href="https://github.com/gjeanmart/gh-pr-line-breakdown" target="_blank">GitHub</a>
+  </div>
   <script type="module" src="popup.js"></script>
 </body>
 </html>

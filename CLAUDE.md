@@ -4,7 +4,8 @@
 
 A Chrome Extension (Manifest V3) that overlays a line-count breakdown widget
 on GitHub PR pages, categorizing changed lines into configurable buckets
-(Tests, Documentation, Generated/Other, Main) based on wildcard file patterns.
+(Tests, Documentation, Generated/Other, CI/CD, Infrastructure, Config, Database,
+Styles, Main) based on wildcard file patterns.
 
 ---
 
@@ -22,7 +23,7 @@ gh-pr-line-breakdown/
 │   ├── github_api.ts       # fetches PR files via GitHub REST API (paginated)
 │   ├── popup/
 │   │   ├── popup.html
-│   │   └── popup.ts        # "Open Options" button
+│   │   └── popup.ts        # breakdown view + show/hide empty toggle + "Open Options" button
 │   └── options/
 │       ├── options.html
 │       ├── options.css     # extracted stylesheet (copied to dist/ by build.mjs)
@@ -135,6 +136,10 @@ with a contextual red message (also `autoShow: true`).
 - Each row: category name | N files (gray, 11px) | bar | +added −removed (paired in a
   flex container, `min-width: 48px` each for column alignment) | %
 - `CategoryStats` includes a `files` counter (incremented per file in `buildBreakdown`)
+- Rows with 0 lines get a `row--empty` class and are hidden by default via `.rows.hide-empty .row--empty { display: none; }`.
+  A footer toggle link ("Show N empty" / "Hide empty") lets the user reveal them.
+  State is tracked in the `hideEmpty` module variable (persists across hover open/close).
+  The same pattern is implemented in the extension popup (`popup.ts` / `popup.html`).
 
 **Anchor change detection**: GitHub's React re-renders can replace the anchor DOM node.
 The `currentAnchor` module variable tracks the last known anchor; if a new one is found,
@@ -261,9 +266,11 @@ MutationObserver, GitHub API for file data.
 - [x] CI/CD pipeline (GitHub Actions: build + test on every push, release on `v*` tags)
 - [ ] Publish to the Chrome Web Store (first manual submission pending)
 - [ ] Expand test coverage — more edge cases in `matcher.test.ts`, integration-style tests
-- [ ] Export and Import
+- [x] Export and Import
 - [ ] Manage specific config per repo
-- [ ] Show breakdown in the extansion popup
+- [x] Show breakdown in the extension popup
+- [x] Expand default categories (CI/CD, Infrastructure, Config, Database, Styles)
+- [x] Show/hide empty categories toggle in widget and popup
 
 ---
 

@@ -22,9 +22,14 @@ Files are classified into categories evaluated in order — the first matching g
 | **Documentation**     | `*.md`, `*.rst`, `*.svg`, `docs/**`, images, diagrams                                                |
 | **Generated / Other** | Lock files, `*.snap`, `dist/**`, `build/**`, `.next/**`, Python bytecode                             |
 
-Categories can be added, removed, reordered, and edited from the extension options page. Changes take effect immediately on the next PR page load.
+The options page (click the extension icon → **Open Options**) has two tabs:
 
-By default, unauthenticated API calls are limited to **60 requests/hour**. For private repos or heavy usage, add a GitHub token in the extension options (click the icon → **Open Options**). Generate one at [GitHub Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens) — use `repo` scope for private repos, no scope for public only. The token is stored locally in your browser and never synced.
+- **Categories** — add, remove, reorder (drag and drop), and edit glob patterns. Changes take effect on the next PR page load.
+- **Settings** — GitHub token, and import/export of your category config as JSON.
+
+You can **export** your categories to a JSON file to back them up or share them across browsers. **Importing** a file replaces your current categories — you can review the result before saving. The GitHub token is never included in exports.
+
+By default, unauthenticated API calls are limited to **60 requests/hour**. For private repos or heavy usage, add a GitHub token in **Settings**. Generate one at [GitHub Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens) — use `repo` scope for private repos, no scope for public only. The token is stored locally in your browser and never synced.
 
 ## Getting Started
 

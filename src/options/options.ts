@@ -132,4 +132,7 @@ function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+document.getElementById("footer-version")!.textContent =
+  `v${chrome.runtime.getManifest().version}`;
+
 init();

@@ -57,6 +57,22 @@
     .bh-removed { color: #cf222e; font-weight: 500; }
 
     .rows { display: flex; flex-direction: column; gap: 5px; }
+    .rows.hide-empty .row--empty { display: none; }
+
+    .rows-footer {
+      margin-top: 6px;
+      text-align: right;
+    }
+    .toggle-empty {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 11px;
+      color: #0969da;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .toggle-empty:hover { text-decoration: underline; }
 
     .row {
       display: grid;

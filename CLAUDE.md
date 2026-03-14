@@ -233,20 +233,12 @@ Triggered by pushing a `v*` tag. Steps:
 ### How to cut a release
 
 ```bash
-# 1. Bump version in both files
-#    package.json  → "version": "X.Y.Z"
-#    manifest.json → "version": "X.Y.Z"
-git add package.json manifest.json
-git commit -m "chore: bump version to vX.Y.Z"
-git push origin main
-
-# 2. Tag and push — this triggers the release workflow
-git tag vX.Y.Z
-git push origin vX.Y.Z
+npm run release X.Y.Z
 ```
 
-The workflow overwrites the versions at build time from the tag, so step 1 is
-optional but keeps the repo in sync with what was shipped.
+`release.mjs` will: verify a clean working tree → run tests → bump `package.json`
+and `manifest.json` → commit → tag `vX.Y.Z` → push the commit and tag to `main`.
+Pushing the tag triggers the release workflow above.
 
 ### Required GitHub secrets for CWS auto-publish
 

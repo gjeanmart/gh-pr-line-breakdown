@@ -92,18 +92,11 @@ Releases are fully automated via GitHub Actions on version tags.
 ### Steps
 
 1. Make sure all changes are merged into `main` and CI is green
-2. Bump the version in `package.json` and `manifest.json` to the new version (e.g. `1.1.0`)
-3. Commit and push:
+2. Run the release script:
    ```bash
-   git add package.json manifest.json
-   git commit -m "chore: bump version to v1.1.0"
-   git push origin main
+   npm run release 1.1.0
    ```
-4. Tag and push:
-   ```bash
-   git tag v1.1.0
-   git push origin v1.1.0
-   ```
+   This will run tests, bump the version in `package.json` and `manifest.json`, commit, tag, and push everything to `main`.
 
 The `release` GitHub Actions workflow will then automatically:
 

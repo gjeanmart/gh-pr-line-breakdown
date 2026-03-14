@@ -1,5 +1,6 @@
 export type Category = {
   name: string;
+  color?: string;
   patterns: string[];
   fallback?: boolean;
 };
@@ -13,11 +14,13 @@ export const DEFAULT_CONFIG: Config = {
   categories: [
     {
       name: "Main",
+      color: "#6e7781",
       patterns: ["**/*"],
       fallback: true,
     },
     {
       name: "Tests",
+      color: "#0969da",
       patterns: [
         "**/*.spec.ts",
         "**/*.test.ts",
@@ -37,6 +40,7 @@ export const DEFAULT_CONFIG: Config = {
     },
     {
       name: "Documentation",
+      color: "#1a7f37",
       patterns: [
         "**/*.md",
         "**/*.mdx",
@@ -57,6 +61,7 @@ export const DEFAULT_CONFIG: Config = {
     },
     {
       name: "Generated / Other",
+      color: "#8c959f",
       patterns: [
         "**/package-lock.json",
         "**/yarn.lock",
@@ -72,6 +77,7 @@ export const DEFAULT_CONFIG: Config = {
     },
     {
       name: "CI/CD",
+      color: "#e16f24",
       patterns: [
         "**/.github/workflows/**",
         "**/.github/actions/**",
@@ -87,6 +93,7 @@ export const DEFAULT_CONFIG: Config = {
     },
     {
       name: "Infrastructure",
+      color: "#cf222e",
       patterns: [
         "**/*.tf",
         "**/*.tfvars",
@@ -100,6 +107,7 @@ export const DEFAULT_CONFIG: Config = {
     },
     {
       name: "Config",
+      color: "#6639ba",
       patterns: [
         "**/.eslintrc*",
         "**/.prettierrc*",
@@ -118,6 +126,7 @@ export const DEFAULT_CONFIG: Config = {
     },
     {
       name: "Database",
+      color: "#9a6700",
       patterns: [
         "**/migrations/**",
         "**/db/migrate/**",
@@ -129,6 +138,7 @@ export const DEFAULT_CONFIG: Config = {
     },
     {
       name: "Styles",
+      color: "#bf3989",
       patterns: [
         "**/*.css",
         "**/*.scss",

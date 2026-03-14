@@ -31,7 +31,7 @@ function buildRows(
       const emptyClass = stats.total === 0 ? " row--empty" : "";
       return `
       <div class="row${emptyClass}">
-        <span class="cat-name">${escapeHtml(cat.name)}</span>
+        <span class="cat-name"><span class="cat-dot" style="background:${escapeHtml(cat.color ?? "#8c959f")}"></span>${escapeHtml(cat.name)}</span>
         <span class="cat-files">${fileLabel}</span>
         <div class="bar-track">
           <div class="bar-half bar-left">
@@ -282,11 +282,20 @@ const STYLES = `
   }
 
   .cat-name {
+    display: flex;
+    align-items: center;
+    gap: 5px;
     font-size: 12px;
     color: #1f2328;
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
+  }
+
+  .cat-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
   }
 
   .bar-track {

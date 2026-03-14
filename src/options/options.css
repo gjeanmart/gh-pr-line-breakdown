@@ -158,6 +158,22 @@ body {
   padding: 12px 14px;
 }
 
+.cat-color {
+  width: 28px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  cursor: pointer;
+  background: none;
+  flex-shrink: 0;
+  transition: border-color 0.15s;
+}
+
+.cat-color:hover {
+  border-color: #8c959f;
+}
+
 .category-header {
   display: flex;
   align-items: center;

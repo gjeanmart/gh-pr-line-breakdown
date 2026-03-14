@@ -43,6 +43,7 @@ By default, unauthenticated API calls are limited to **60 requests/hour**. For p
 - **Firefox support** — publish to the Firefox Add-ons Marketplace (AMO)
 - **Category pills on PR list pages** — inject mini colored category pills on GitHub's PR list view so you can see the file-type composition of a PR before opening it
 - **LLM integration** — connect to a cloud (OpenAI, Anthropic, etc.) or local (Ollama) LLM for AI-assisted review: category-aware PR summaries, review focus suggestions, inline comment proposals, and risk flagging. Configurable endpoint and API key in the Settings tab
+- **GitHub classic experience support** — the extension currently only works with GitHub's new (Primer React) UI; add fallback selectors to support the classic GitHub experience
 - **GitLab support** — bring the same breakdown widget and file badges to GitLab merge request pages (`gitlab.com` and self-hosted instances)
 - **Gitea / Forgejo support** — extend to self-hosted Gitea and Forgejo instances, with configurable instance URLs in Settings
 - **Repo-specific config** — define different category rules per repository

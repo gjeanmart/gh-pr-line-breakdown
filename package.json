@@ -6,7 +6,8 @@
   "scripts": {
     "build": "node build.mjs",
     "test": "vitest run",
-    "dev": "node --watch build.mjs"
+    "dev": "node --watch build.mjs",
+    "release": "node release.mjs"
   },
   "dependencies": {
     "minimatch": "^9.0.4"

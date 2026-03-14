@@ -33,8 +33,11 @@ function renderBreakdown(files: FileEntry[], categories: Category[]): void {
     return `
       <div class="row${emptyClass}">
         <div class="cat-info">
-          <span class="cat-name">${escapeHtml(cat.name)}</span>
-          <span class="cat-files">${fileLabel}</span>
+          <span class="cat-dot" style="background:${escapeHtml(cat.color ?? "#8c959f")}"></span>
+          <div>
+            <span class="cat-name">${escapeHtml(cat.name)}</span>
+            <span class="cat-files">${fileLabel}</span>
+          </div>
         </div>
         <span class="stat stat-added">+${stats.added.toLocaleString()}</span>
         <span class="stat stat-removed">\u2212${stats.removed.toLocaleString()}</span>

@@ -3,7 +3,7 @@
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/llfndpapjbmogegbhbbjckaimmlpjgkc?label=Chrome%20Web%20Store)](https://chromewebstore.google.com/detail/github-pr-line-breakdown/llfndpapjbmogegbhbbjckaimmlpjgkc)
 [![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/llfndpapjbmogegbhbbjckaimmlpjgkc)](https://chromewebstore.google.com/detail/github-pr-line-breakdown/llfndpapjbmogegbhbbjckaimmlpjgkc)
 
-A Chrome extension that shows a line-count breakdown widget on GitHub PR pages, categorizing changed lines into configurable buckets (Tests, Documentation, Generated, Main) based on glob patterns.
+A Chrome extension that shows a line-count breakdown widget on GitHub PR pages, categorizing changed lines into configurable buckets (Tests, Documentation, Generated, Main) based on glob patterns. Each category has a configurable color, shown as a pill badge on every file diff header and as a color swatch in the widget and popup.
 
 ![Screenshot](docs/widget.png)
 
@@ -29,7 +29,7 @@ Files are classified into categories evaluated in order — the first matching g
 
 The options page (click the extension icon → **Open Options**) has two tabs:
 
-- **Categories** — add, remove, reorder (drag and drop), and edit glob patterns. Changes take effect on the next PR page load.
+- **Categories** — add, remove, reorder (drag and drop), edit glob patterns, and pick a color per category. The color is displayed as a pill badge on each file diff header and as a small swatch in the hover widget and popup. Changes take effect on the next PR page load.
 - **Settings** — GitHub token, and import/export of your category config as JSON.
 
 You can **export** your categories to a JSON file to back them up or share them across browsers. **Importing** a file replaces your current categories — you can review the result before saving. The GitHub token is never included in exports.

@@ -43,9 +43,11 @@ function renderCategories(): void {
       : "";
 
     card.setAttribute("draggable", "true");
+    card.style.borderLeftColor = cat.color ?? "#0969da";
     card.innerHTML = `
       <div class="category-header">
         <span class="drag-handle" title="Drag to reorder">&#8942;&#8942;</span>
+        <input type="color" class="cat-color" value="${cat.color ?? "#0969da"}" title="Badge color" />
         <input type="text" class="cat-name" draggable="false" value="${escapeAttr(cat.name)}" placeholder="Category name" />
         ${fallbackBadge}
         ${removeBtn}
@@ -53,6 +55,10 @@ function renderCategories(): void {
       <label>Glob patterns (one per line)</label>
       <textarea class="cat-patterns" draggable="false" rows="4">${escapeHtml(cat.patterns.join("\n"))}</textarea>
     `;
+
+    card.querySelector<HTMLInputElement>(".cat-color")!.addEventListener("input", (e) => {
+      card.style.borderLeftColor = (e.target as HTMLInputElement).value;
+    });
 
     card.querySelector("[data-action='remove']")?.addEventListener("click", () => {
       config.categories.splice(index, 1);
@@ -95,10 +101,11 @@ function readFormIntoConfig(): void {
 
   cards.forEach((card, index) => {
     const name = (card.querySelector<HTMLInputElement>(".cat-name")!).value.trim();
+    const color = (card.querySelector<HTMLInputElement>(".cat-color")!).value;
     const patternsRaw = (card.querySelector<HTMLTextAreaElement>(".cat-patterns")!).value;
     const patterns = patternsRaw.split("\n").map((p) => p.trim()).filter(Boolean);
     const fallback = config.categories[index]?.fallback ?? false;
-    updated.push({ name, patterns, ...(fallback ? { fallback: true } : {}) });
+    updated.push({ name, color, patterns, ...(fallback ? { fallback: true } : {}) });
   });
 
   config.categories = updated;
@@ -127,6 +134,7 @@ function onAddCategory(): void {
   const insertAt = config.categories.length;
   config.categories.splice(insertAt, 0, {
     name: "New Category",
+    color: "#0969da",
     patterns: [],
   });
   renderCategories();

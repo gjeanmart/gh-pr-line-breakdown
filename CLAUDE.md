@@ -18,6 +18,7 @@ gh-pr-line-breakdown/
 ├── src/
 │   ├── content_script.ts   # injected on github.com/*/pull/* pages
 │   ├── widget.ts           # hover popup rendering (anchored to diffstat)
+│   ├── badges.ts           # injects colored category pill badges into file diff headers
 │   ├── matcher.ts          # wildcard category matching (custom globMatch, no deps)
 │   ├── config.ts           # Category/Config types, defaults, chrome.storage helpers
 │   ├── github_api.ts       # fetches PR files via GitHub REST API (paginated)
@@ -61,6 +62,7 @@ A category with `"fallback": true` catches everything not matched above it.
 ```ts
 type Category = {
   name: string;
+  color?: string;     // hex color for the pill badge and color swatch (default: #8c959f)
   patterns: string[]; // glob patterns (custom globMatch, minimatch-compatible syntax)
   fallback?: boolean; // if true, matches anything not matched above
 };
@@ -144,6 +146,29 @@ with a contextual red message (also `autoShow: true`).
 **Anchor change detection**: GitHub's React re-renders can replace the anchor DOM node.
 The `currentAnchor` module variable tracks the last known anchor; if a new one is found,
 the event listeners are rebound via `AbortController`.
+
+### Category color badges — `src/badges.ts`
+
+`injectBadges(files, categories)` is called after each API fetch and injects a colored pill
+badge (category name on a solid background) into every file diff header on the Files Changed tab.
+Three strategies cover GitHub's different header structures:
+
+1. **Strategy 1** — `button[aria-label^="Expand all lines: {path}"]`: path is in the aria-label.
+   Used for files that have hidden context lines (partial diffs).
+2. **Strategy 2** — `a[href*="/blob/"]`: path extracted from the blob URL via regex
+   `/\/blob\/[^/]+\/(.+?)(?:[?#].*)?$/`. Used for files whose header contains a full blob URL.
+3. **Strategy 3** — `a[href^="#diff-"]`: GitHub computes the diff anchor as `#diff-{sha256(path)}`.
+   For files with neither an expand button nor a full blob URL (e.g. entirely new files),
+   all file paths are hashed with `crypto.subtle.digest('SHA-256', ...)` and matched against
+   these anchors. This makes `injectBadges` async.
+
+All three strategies insert the badge immediately before the `button[aria-label*="Viewed"]`
+button for consistent positioning. `findHeaderContainer` walks up the DOM to find the
+smallest ancestor with exactly one "Viewed" button, scoping badge injection to one file at a
+time. `clearBadges()` removes all injected badges when navigating to a new PR.
+
+A 10×10px rounded color swatch (`.cat-dot`) also appears to the left of each category name
+in the hover widget and the extension popup.
 
 ### MutationObserver
 
@@ -271,6 +296,7 @@ MutationObserver, GitHub API for file data.
 - [x] Show breakdown in the extension popup
 - [x] Expand default categories (CI/CD, Infrastructure, Config, Database, Styles)
 - [x] Show/hide empty categories toggle in widget and popup
+- [x] Category colors — configurable per category; shown as pill badge on file diff headers and as color swatch in widget/popup
 
 ---
 

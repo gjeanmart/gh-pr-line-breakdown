@@ -62,7 +62,7 @@ A category with `"fallback": true` catches everything not matched above it.
 ```ts
 type Category = {
   name: string;
-  color?: string;     // hex color for the pill badge and color swatch (default: #8c959f)
+  color?: string; // hex color for the pill badge and color swatch (default: #8c959f)
   patterns: string[]; // glob patterns (custom globMatch, minimatch-compatible syntax)
   fallback?: boolean; // if true, matches anything not matched above
 };
@@ -285,18 +285,25 @@ MutationObserver, GitHub API for file data.
 
 ### Phase 3 — V1 (not started)
 
-- [ ] Review and polish UI/UX design (widget + options page)
-- [ ] Add **file change count** per category alongside the line counts
+- [x] Add **file change count** per category alongside the line counts
 - [x] Move **Main** category to the top of the default order (or make order user-configurable)
 - [x] CI/CD pipeline (GitHub Actions: build + test on every push, release on `v*` tags)
-- [ ] Publish to the Chrome Web Store (first manual submission pending)
-- [ ] Expand test coverage — more edge cases in `matcher.test.ts`, integration-style tests
 - [x] Export and Import
-- [ ] Manage specific config per repo
 - [x] Show breakdown in the extension popup
 - [x] Expand default categories (CI/CD, Infrastructure, Config, Database, Styles)
 - [x] Show/hide empty categories toggle in widget and popup
 - [x] Category colors — configurable per category; shown as pill badge on file diff headers and as color swatch in widget/popup
+- [ ] Review and polish UI/UX design (widget + options page)
+- [ ] Publish to the Chrome Web Store (first manual submission pending)
+- [ ] Expand test coverage — more edge cases in `matcher.test.ts`, integration-style tests
+- [ ] Manage specific config per repo
+- [ ] Add a **show/hide icon per category row** in the widget to filter (show/hide) the matching files in GitHub's Files Changed tab
+- [ ] Inject **`+N -N` line counts** into GitHub's PR file tree (left sidebar) next to each file and folder (folders show rolled-up totals)
+- [ ] **Firefox support** — publish to AMO; use `browser.*` API (WebExtensions) with a polyfill or conditional shim, ship a separate `manifest.firefox.json` (MV2) alongside the existing MV3 manifest, and add a Firefox build pass to `build.mjs`
+- [ ] **Category breakdown pills on PR list pages** — inject mini colored category pills on GitHub PR list views (`/pulls`) so reviewers can see the file-type composition of a PR before opening it (requires a lightweight API call per visible PR row, with caching)
+- [ ] **LLM integration** — connect to a cloud (OpenAI, Anthropic, etc.) or local (Ollama) LLM to offer AI-assisted review features: PR summary based on category breakdown and file paths, review focus suggestions ("only 12 lines of Main changed — likely a config-only PR"), inline comment proposals, and risk flagging. Token/endpoint configurable in the options Settings tab alongside the GitHub token.
+- [ ] **GitLab support** — extend to GitLab MR pages (`gitlab.com` + self-hosted); abstract the host-specific API client and DOM injection behind a provider interface (`GitHubProvider`, `GitLabProvider`) so `content_script.ts` stays provider-agnostic. GitLab REST API: `GET /projects/:id/merge_requests/:iid/changes`.
+- [ ] **Gitea support** — extend to Gitea/Forgejo instances (self-hosted); add a `GiteaProvider` using `GET /repos/{owner}/{repo}/pulls/{index}/files`. User configures instance URLs in the Settings tab.
 
 ---
 

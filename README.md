@@ -36,6 +36,18 @@ You can **export** your categories to a JSON file to back them up or share them 
 
 By default, unauthenticated API calls are limited to **60 requests/hour**. For private repos or heavy usage, add a GitHub token in **Settings**. Generate one at [GitHub Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens) — use `repo` scope for private repos, no scope for public only. The token is stored locally in your browser and never synced.
 
+## Planned features
+
+- **Show/hide icon per category** — click an icon on a category row in the widget to show or hide the matching files in GitHub's Files Changed tab
+- **Line counts in the file tree** — inject `+N -N` added/removed counts next to each file and folder in GitHub's PR file explorer (left sidebar), with folders showing rolled-up totals
+- **Firefox support** — publish to the Firefox Add-ons Marketplace (AMO)
+- **Category pills on PR list pages** — inject mini colored category pills on GitHub's PR list view so you can see the file-type composition of a PR before opening it
+- **LLM integration** — connect to a cloud (OpenAI, Anthropic, etc.) or local (Ollama) LLM for AI-assisted review: category-aware PR summaries, review focus suggestions, inline comment proposals, and risk flagging. Configurable endpoint and API key in the Settings tab
+- **GitLab support** — bring the same breakdown widget and file badges to GitLab merge request pages (`gitlab.com` and self-hosted instances)
+- **Gitea / Forgejo support** — extend to self-hosted Gitea and Forgejo instances, with configurable instance URLs in Settings
+- **Repo-specific config** — define different category rules per repository
+- **UI/UX polish** — design improvements to the widget and options page
+
 ## Getting Started
 
 ### Install from the Chrome Web Store

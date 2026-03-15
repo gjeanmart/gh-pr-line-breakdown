@@ -19,6 +19,7 @@ gh-pr-line-breakdown/
 │   ├── content_script.ts   # injected on github.com/*/pull/* pages
 │   ├── widget.ts           # hover popup rendering (anchored to diffstat)
 │   ├── badges.ts           # injects colored category pill badges into file diff headers
+│   ├── file_tree.ts        # injects +N -N line counts into the PR file tree sidebar
 │   ├── matcher.ts          # wildcard category matching (custom globMatch, no deps)
 │   ├── config.ts           # Category/Config types, defaults, chrome.storage helpers
 │   ├── github_api.ts       # fetches PR files via GitHub REST API (paginated)
@@ -170,6 +171,25 @@ time. `clearBadges()` removes all injected badges when navigating to a new PR.
 A 10×10px rounded color swatch (`.cat-dot`) also appears to the left of each category name
 in the hover widget and the extension popup.
 
+### File tree line counts — `src/file_tree.ts`
+
+`injectTreeCounts(files)` is called (synchronously) after each API fetch and injects `+N −N`
+line counts next to every item in GitHub's PR file tree sidebar (Files Changed tab).
+
+**How paths are resolved**: GitHub's Primer React TreeView sets `id="full/path/to/file"`
+on every `[role="treeitem"]` `<li>` — both for files and folders. This allows direct O(1)
+`Map.get(id)` lookup with no hashing required.
+
+**Folder rollup**: `buildMaps()` accumulates each file's `added`/`removed` counts into
+every ancestor folder path (e.g. `src/foo/bar.ts` contributes to `src/foo` and `src`),
+building a `folderMap` alongside the flat `fileMap`.
+
+**Injection point**: counts are appended to the `div[class*="TreeView-item-content"]`
+inside each `<li>` — that's the flex row containing the icon and label. `margin-left: auto`
+pushes the count to the right edge of the row.
+
+`clearTreeCounts()` removes all injected spans when navigating to a new PR.
+
 ### MutationObserver
 
 Observes `document.body` (not a scoped element) so it fires on every PR tab:
@@ -290,7 +310,7 @@ MutationObserver, GitHub API for file data.
 - [ ] Expand test coverage — more edge cases in `matcher.test.ts`, integration-style tests
 - [ ] Manage specific config per repo
 - [ ] Add a **show/hide icon per category row** in the widget to filter (show/hide) the matching files in GitHub's Files Changed tab
-- [ ] Inject **`+N -N` line counts** into GitHub's PR file tree (left sidebar) next to each file and folder (folders show rolled-up totals)
+- [x] Inject **`+N -N` line counts** into GitHub's PR file tree (left sidebar) next to each file and folder (folders show rolled-up totals)
 - [ ] **Firefox support** — publish to AMO; use `browser.*` API (WebExtensions) with a polyfill or conditional shim, ship a separate `manifest.firefox.json` (MV2) alongside the existing MV3 manifest, and add a Firefox build pass to `build.mjs`
 - [ ] **Category breakdown pills on PR list pages** — inject mini colored category pills on GitHub PR list views (`/pulls`) so reviewers can see the file-type composition of a PR before opening it (requires a lightweight API call per visible PR row, with caching)
 - [ ] **LLM integration** — connect to a cloud (OpenAI, Anthropic, etc.) or local (Ollama) LLM to offer AI-assisted review features: PR summary based on category breakdown and file paths, review focus suggestions ("only 12 lines of Main changed — likely a config-only PR"), inline comment proposals, and risk flagging. Token/endpoint configurable in the options Settings tab alongside the GitHub token.

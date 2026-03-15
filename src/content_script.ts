@@ -3,6 +3,7 @@ import { buildBreakdown } from "./matcher.js";
 import { renderHeaderIcon, renderLoadingState, renderError } from "./widget.js";
 import { fetchPrFilesFromApi } from "./github_api.js";
 import { injectBadges, clearBadges } from "./badges.js";
+import { injectTreeCounts, clearTreeCounts } from "./file_tree.js";
 import type { Config } from "./config.js";
 import type { FileEntry } from "./matcher.js";
 
@@ -33,6 +34,7 @@ async function runBreakdown(): Promise<void> {
     cachedFiles = null;
     cachedError = false;
     clearBadges();
+    clearTreeCounts();
     renderLoadingState();
     const result = await fetchPrFilesFromApi(currentConfig.githubToken);
     if (!result) return;
@@ -50,6 +52,7 @@ async function runBreakdown(): Promise<void> {
   const breakdown = buildBreakdown(cachedFiles, currentConfig.categories);
   renderHeaderIcon(breakdown, currentConfig.categories);
   await injectBadges(cachedFiles, currentConfig.categories);
+  injectTreeCounts(cachedFiles);
 }
 
 function getPrPath(): string | null {

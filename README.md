@@ -3,7 +3,7 @@
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/llfndpapjbmogegbhbbjckaimmlpjgkc?label=Chrome%20Web%20Store)](https://chromewebstore.google.com/detail/github-pr-line-breakdown/llfndpapjbmogegbhbbjckaimmlpjgkc)
 [![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/llfndpapjbmogegbhbbjckaimmlpjgkc)](https://chromewebstore.google.com/detail/github-pr-line-breakdown/llfndpapjbmogegbhbbjckaimmlpjgkc)
 
-A Chrome extension that shows a line-count breakdown widget on GitHub PR pages, categorizing changed lines into configurable buckets (Tests, Documentation, Generated, Main) based on glob patterns. Each category has a configurable color, shown as a pill badge on every file diff header and as a color swatch in the widget and popup.
+A Chrome extension that shows a line-count breakdown widget on GitHub PR pages, categorizing changed lines into configurable buckets (Tests, Documentation, Generated, Main) based on glob patterns. Each category has a configurable color, shown as a pill badge on every file diff header and as a color swatch in the widget and popup. Click the eye icon on any category row to collapse all matching files in the Files Changed tab — keeping headers visible for context.
 
 ![Screenshot](docs/widget.png)
 
@@ -11,7 +11,7 @@ A Chrome extension that shows a line-count breakdown widget on GitHub PR pages, 
 
 The extension fetches the list of changed files from the GitHub REST API and classifies each file against your configured categories using glob patterns. The results appear as a hover popup anchored to the native `+N -N ████` diffstat shown in the PR header — visible on every PR tab (Conversation, Commits, Checks, Files Changed).
 
-The popup header shows the total line and file counts across all categories. Each category row shows its file count, a proportional bar chart, added/removed line counts, and a percentage of total lines changed.
+The popup header shows the total line and file counts across all categories. Each category row shows its file count, a proportional bar chart, added/removed line counts, a percentage of total lines changed, and an eye icon to collapse/expand all matching files in the Files Changed tab.
 
 On the Files Changed tab, `+N −N` line counts are also injected directly into the PR file tree sidebar next to every file and folder. Folder counts roll up all files underneath them.
 
@@ -40,7 +40,6 @@ By default, unauthenticated API calls are limited to **60 requests/hour**. For p
 
 ## Planned features
 
-- **Show/hide icon per category** — click an icon on a category row in the widget to show or hide the matching files in GitHub's Files Changed tab
 - **Firefox support** — publish to the Firefox Add-ons Marketplace (AMO)
 - **Category pills on PR list pages** — inject mini colored category pills on GitHub's PR list view so you can see the file-type composition of a PR before opening it
 - **LLM integration** — connect to a cloud (OpenAI, Anthropic, etc.) or local (Ollama) LLM for AI-assisted review: category-aware PR summaries, review focus suggestions, inline comment proposals, and risk flagging. Configurable endpoint and API key in the Settings tab

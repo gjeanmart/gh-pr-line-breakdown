@@ -1,10 +1,10 @@
 import { loadConfig } from "./config.js";
-import { buildBreakdown } from "./matcher.js";
-import { renderHeaderIcon, renderLoadingState, renderError } from "./widget.js";
+import { buildBreakdown, classifyFile } from "./matcher.js";
+import { renderHeaderIcon, renderLoadingState, renderError, getHiddenCategories, resetCategoryFilter } from "./widget.js";
 import { fetchPrFilesFromApi } from "./github_api.js";
-import { injectBadges, clearBadges } from "./badges.js";
+import { injectBadges, clearBadges, setFilesVisible } from "./badges.js";
 import { injectTreeCounts, clearTreeCounts } from "./file_tree.js";
-import type { Config } from "./config.js";
+import type { Config, Category } from "./config.js";
 import type { FileEntry } from "./matcher.js";
 
 let currentConfig: Config | null = null;
@@ -33,6 +33,7 @@ async function runBreakdown(): Promise<void> {
     cachedPrPath = prPath;
     cachedFiles = null;
     cachedError = false;
+    resetCategoryFilter();
     clearBadges();
     clearTreeCounts();
     renderLoadingState();
@@ -49,10 +50,32 @@ async function runBreakdown(): Promise<void> {
   if (cachedError) return;
   if (!cachedFiles || cachedFiles.length === 0) return;
 
-  const breakdown = buildBreakdown(cachedFiles, currentConfig.categories);
-  renderHeaderIcon(breakdown, currentConfig.categories);
-  await injectBadges(cachedFiles, currentConfig.categories);
+  const { categories } = currentConfig;
+  const breakdown = buildBreakdown(cachedFiles, categories);
+  const filesByCategory = buildFilesByCategory(cachedFiles, categories);
+
+  renderHeaderIcon(breakdown, categories, (catName, visible) => {
+    setFilesVisible(filesByCategory.get(catName) ?? [], visible);
+  });
+
+  await injectBadges(cachedFiles, categories);
   injectTreeCounts(cachedFiles);
+
+  // Re-apply any active category filters to the freshly-injected DOM
+  const hidden = getHiddenCategories();
+  for (const [catName, filenames] of filesByCategory) {
+    if (hidden.has(catName)) setFilesVisible(filenames, false);
+  }
+}
+
+function buildFilesByCategory(files: FileEntry[], categories: Category[]): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (const cat of categories) map.set(cat.name, []);
+  for (const file of files) {
+    const cat = classifyFile(file.filename, categories);
+    map.get(cat.name)?.push(file.filename);
+  }
+  return map;
 }
 
 function getPrPath(): string | null {

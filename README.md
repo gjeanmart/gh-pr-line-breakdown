@@ -13,6 +13,8 @@ The extension fetches the list of changed files from the GitHub REST API and cla
 
 The popup header shows the total line and file counts across all categories. Each category row shows its file count, a proportional bar chart, added/removed line counts, and a percentage of total lines changed.
 
+On the Files Changed tab, `+N −N` line counts are also injected directly into the PR file tree sidebar next to every file and folder. Folder counts roll up all files underneath them.
+
 Files are classified into categories evaluated in order — the first matching glob pattern wins. Default categories:
 
 | Category              | Matches                                                                                              |
@@ -39,7 +41,6 @@ By default, unauthenticated API calls are limited to **60 requests/hour**. For p
 ## Planned features
 
 - **Show/hide icon per category** — click an icon on a category row in the widget to show or hide the matching files in GitHub's Files Changed tab
-- **Line counts in the file tree** — inject `+N -N` added/removed counts next to each file and folder in GitHub's PR file explorer (left sidebar), with folders showing rolled-up totals
 - **Firefox support** — publish to the Firefox Add-ons Marketplace (AMO)
 - **Category pills on PR list pages** — inject mini colored category pills on GitHub's PR list view so you can see the file-type composition of a PR before opening it
 - **LLM integration** — connect to a cloud (OpenAI, Anthropic, etc.) or local (Ollama) LLM for AI-assisted review: category-aware PR summaries, review focus suggestions, inline comment proposals, and risk flagging. Configurable endpoint and API key in the Settings tab

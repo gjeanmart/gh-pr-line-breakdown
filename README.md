@@ -5,7 +5,7 @@
 
 A Chrome extension that shows a line-count breakdown widget on GitHub PR pages, categorizing changed lines into configurable buckets (Tests, Documentation, Generated, Main) based on glob patterns. Each category has a configurable color, shown as a pill badge on every file diff header and as a color swatch in the widget and popup. Click the eye icon on any category row to collapse all matching files in the Files Changed tab — keeping headers visible for context.
 
-![Screenshot](docs/widget.png)
+![Screenshot](docs/full.png)
 
 ## How it works
 
@@ -17,17 +17,17 @@ On the Files Changed tab, `+N −N` line counts are also injected directly into 
 
 Files are classified into categories evaluated in order — the first matching glob pattern wins. Default categories:
 
-| Category              | Matches                                                                                              |
-| --------------------- | ---------------------------------------------------------------------------------------------------- |
-| **Main** (fallback)   | Everything else                                                                                      |
-| **Tests**             | `*.spec.ts`, `*.test.ts`, `*.spec.tsx`, `*.test.tsx`, `__tests__/**`, `test_*.py`, `*_test.py`, etc. |
-| **Documentation**     | `*.md`, `*.rst`, `*.svg`, `docs/**`, images, diagrams                                                |
-| **Generated / Other** | Lock files, `*.snap`, `dist/**`, `build/**`, `.next/**`, Python bytecode                             |
-| **CI/CD**             | `.github/workflows/**`, `.circleci/**`, `Dockerfile*`, `docker-compose*`, `.travis.yml`, etc.        |
-| **Infrastructure**    | `*.tf`, `*.tfvars`, `k8s/**`, `kubernetes/**`, `helm/**`, `charts/**`                                |
+| Category              | Matches                                                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Main** (fallback)   | Everything else                                                                                         |
+| **Tests**             | `*.spec.ts`, `*.test.ts`, `*.spec.tsx`, `*.test.tsx`, `__tests__/**`, `test_*.py`, `*_test.py`, etc.    |
+| **Documentation**     | `*.md`, `*.rst`, `*.svg`, `docs/**`, images, diagrams                                                   |
+| **Generated / Other** | Lock files, `*.snap`, `dist/**`, `build/**`, `.next/**`, Python bytecode                                |
+| **CI/CD**             | `.github/workflows/**`, `.circleci/**`, `Dockerfile*`, `docker-compose*`, `.travis.yml`, etc.           |
+| **Infrastructure**    | `*.tf`, `*.tfvars`, `k8s/**`, `kubernetes/**`, `helm/**`, `charts/**`                                   |
 | **Config**            | `.eslintrc*`, `.prettierrc*`, `tsconfig*.json`, `vite.config.*`, `.editorconfig`, `renovate.json`, etc. |
-| **Database**          | `migrations/**`, `db/migrate/**`, `seeds/**`, `fixtures/**`, `*.sql`                                |
-| **Styles**            | `*.css`, `*.scss`, `*.sass`, `*.less`, `styles/**`, `themes/**`                                      |
+| **Database**          | `migrations/**`, `db/migrate/**`, `seeds/**`, `fixtures/**`, `*.sql`                                    |
+| **Styles**            | `*.css`, `*.scss`, `*.sass`, `*.less`, `styles/**`, `themes/**`                                         |
 
 The options page (click the extension icon → **Open Options**) has two tabs:
 

@@ -4,6 +4,15 @@ import { classifyFile } from "./matcher.js";
 
 const BADGE_CLASS = "gh-breakdown-badge";
 const EXPAND_LABEL_PREFIX = "Expand all lines: ";
+// Attribute placed on a file's section element when collapsed by our category filter
+const FILTER_ATTR = "data-gh-breakdown-filtered";
+
+// Maps filename → file header container (smallest ancestor with exactly one "Viewed" button).
+// Populated during badge injection — used by the category filter to locate diff sections.
+const fileHeaderMap: Map<string, HTMLElement> = new Map();
+// Tracks filenames collapsed by our filter so we only re-expand those we collapsed,
+// not files the user had already manually collapsed.
+const filteredFiles: Set<string> = new Set();
 
 export async function injectBadges(files: FileEntry[], categories: Category[]): Promise<void> {
   const fileMap = new Map<string, Category>();
@@ -20,6 +29,7 @@ export async function injectBadges(files: FileEntry[], categories: Category[]): 
     const category = fileMap.get(path);
     if (!category) continue;
     (header.querySelector(".file-info") ?? header).appendChild(createBadge(category));
+    fileHeaderMap.set(path, header);
     injectedPaths.add(path);
   }
 
@@ -33,6 +43,7 @@ export async function injectBadges(files: FileEntry[], categories: Category[]): 
     const category = fileMap.get(path);
     if (!category) continue;
     injectedPaths.add(path);
+    fileHeaderMap.set(path, headerContainer);
     const viewedBtn = headerContainer.querySelector<HTMLElement>("button[aria-label*='Viewed']");
     if (viewedBtn) {
       viewedBtn.insertAdjacentElement("beforebegin", createBadge(category));
@@ -41,9 +52,6 @@ export async function injectBadges(files: FileEntry[], categories: Category[]): 
 
   // === New GitHub Primer UI — Strategy 2 ===
   // Every file header contains a blob anchor: /owner/repo/blob/{sha}/{path}
-  // The file path is embedded in the URL — no class constraints needed, no text matching.
-  // `findHeaderContainer` (exactly-one-Viewed-button check) ensures we only process
-  // real file header rows and not other /blob/ links on the page.
   for (const anchor of Array.from(document.querySelectorAll<HTMLElement>("a[href*='/blob/']"))) {
     const href = anchor.getAttribute("href") ?? "";
     const m = href.match(/\/blob\/[^/]+\/(.+?)(?:[?#].*)?$/);
@@ -58,8 +66,8 @@ export async function injectBadges(files: FileEntry[], categories: Category[]): 
     const category = fileMap.get(blobPath);
     if (!category) continue;
     injectedPaths.add(blobPath);
+    fileHeaderMap.set(blobPath, headerContainer);
 
-    // Insert before the "Viewed/Not Viewed" button — visible and consistently positioned
     const viewedBtn = headerContainer.querySelector<HTMLElement>("button[aria-label*='Viewed']");
     if (viewedBtn) {
       viewedBtn.insertAdjacentElement("beforebegin", createBadge(category));
@@ -69,7 +77,6 @@ export async function injectBadges(files: FileEntry[], categories: Category[]): 
   // === New GitHub Primer UI — Strategy 3 ===
   // For files without an expand button and no full blob URL (e.g. new files with all additions),
   // the file header contains a "#diff-{sha256(path)}" anchor.
-  // We precompute SHA-256 of all file paths and match against these diff IDs.
   const hashMap = await buildHashMap(fileMap);
   for (const anchor of Array.from(document.querySelectorAll<HTMLElement>('a[href^="#diff-"]'))) {
     const href = anchor.getAttribute("href") ?? "";
@@ -81,6 +88,7 @@ export async function injectBadges(files: FileEntry[], categories: Category[]): 
     if (!headerContainer || headerContainer.querySelector(`.${BADGE_CLASS}`)) continue;
 
     injectedPaths.add(entry.filePath);
+    fileHeaderMap.set(entry.filePath, headerContainer);
     const viewedBtn = headerContainer.querySelector<HTMLElement>("button[aria-label*='Viewed']");
     if (viewedBtn) {
       viewedBtn.insertAdjacentElement("beforebegin", createBadge(entry.category));
@@ -90,6 +98,54 @@ export async function injectBadges(files: FileEntry[], categories: Category[]): 
 
 export function clearBadges(): void {
   document.querySelectorAll(`.${BADGE_CLASS}`).forEach((el) => el.remove());
+  fileHeaderMap.clear();
+  filteredFiles.clear();
+}
+
+export function setFilesVisible(filenames: string[], visible: boolean): void {
+  for (const filename of filenames) {
+    const header = fileHeaderMap.get(filename);
+    if (!header) continue;
+
+    if (!visible) {
+      if (collapseFile(header)) filteredFiles.add(filename);
+    } else {
+      if (!filteredFiles.has(filename)) continue;
+      expandFile(header);
+      filteredFiles.delete(filename);
+    }
+  }
+}
+
+// Ancestor layout from debug (GitHub Primer React, no <details>):
+//   level 0: DiffFileHeader-module__diff-file-header  ← header (what we store)
+//   level 1: Diff-module__diffHeaderWrapper            ← header wrapper
+//   level 2: Diff-module__diffTargetable               ← full file section (header + diff body)
+//
+// Collapsing = hide all children of fileSection except the headerWrapper.
+// This keeps the file header visible, exactly like GitHub's native collapse button.
+
+function collapseFile(header: HTMLElement): boolean {
+  const headerWrapper = header.parentElement;
+  const fileSection = headerWrapper?.parentElement;
+  if (!fileSection || fileSection.hasAttribute(FILTER_ATTR)) return false;
+
+  for (const child of Array.from(fileSection.children) as HTMLElement[]) {
+    if (child !== headerWrapper) child.style.display = "none";
+  }
+  fileSection.setAttribute(FILTER_ATTR, "1");
+  return true;
+}
+
+function expandFile(header: HTMLElement): void {
+  const headerWrapper = header.parentElement;
+  const fileSection = headerWrapper?.parentElement;
+  if (!fileSection) return;
+
+  for (const child of Array.from(fileSection.children) as HTMLElement[]) {
+    if (child !== headerWrapper) child.style.display = "";
+  }
+  fileSection.removeAttribute(FILTER_ATTR);
 }
 
 async function buildHashMap(

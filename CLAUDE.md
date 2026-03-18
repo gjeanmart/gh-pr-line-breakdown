@@ -132,17 +132,26 @@ popup immediately with a spinner (`autoShow: true`). Once the API call completes
 letting hover behaviour take over. On API error, `renderError(kind)` auto-shows the popup
 with a contextual red message (also `autoShow: true`).
 
-**Widget layout** (5-column CSS grid per row):
-`120px cat-name | 56px cat-files | 1fr bar-track | auto stats | 32px pct`
+**Widget layout** (6-column CSS grid per row):
+`120px cat-name | 56px cat-files | 1fr bar-track | auto stats | 32px pct | 20px eye-toggle`
 
 - Header shows: total lines · total files · +added −removed
 - Each row: category name | N files (gray, 11px) | bar | +added −removed (paired in a
-  flex container, `min-width: 48px` each for column alignment) | %
+  flex container, `min-width: 48px` each for column alignment) | % | eye icon button
 - `CategoryStats` includes a `files` counter (incremented per file in `buildBreakdown`)
 - Rows with 0 lines get a `row--empty` class and are hidden by default via `.rows.hide-empty .row--empty { display: none; }`.
   A footer toggle link ("Show N empty" / "Hide empty") lets the user reveal them.
   State is tracked in the `hideEmpty` module variable (persists across hover open/close).
   The same pattern is implemented in the extension popup (`popup.ts` / `popup.html`).
+
+**Category filter (eye icon)**:
+- Each row has a `.cat-toggle` button (eye icon, 20px column). Default: gray, 50% opacity.
+  Active/filtered state: red eye-slash icon at full opacity.
+- Click toggles the category in `hiddenCategories: Set<string>` (module-level, persists
+  across hover open/close like `hideEmpty`). On click, `onToggleCategory(name, visible)`
+  callback is invoked — wired in `content_script.ts` to call `setFilesVisible()`.
+- `getHiddenCategories()` and `resetCategoryFilter()` are exported so `content_script.ts`
+  can re-apply filters after every DOM refresh and clear them on PR navigation.
 
 **Anchor change detection**: GitHub's React re-renders can replace the anchor DOM node.
 The `currentAnchor` module variable tracks the last known anchor; if a new one is found,
@@ -170,6 +179,27 @@ time. `clearBadges()` removes all injected badges when navigating to a new PR.
 
 A 10×10px rounded color swatch (`.cat-dot`) also appears to the left of each category name
 in the hover widget and the extension popup.
+
+**Category filter / collapse** (`setFilesVisible`, `fileHeaderMap`):
+
+Each strategy also stores the resolved `headerContainer` in `fileHeaderMap: Map<string, HTMLElement>`
+(filename → header element). This map drives the category filter: when the user clicks an eye
+icon in the widget, `setFilesVisible(filenames, false)` collapses the matching file diffs.
+
+Collapse is implemented by hiding siblings of the header wrapper inside the file section —
+matching GitHub's native collapse behaviour (header stays visible, diff body hides):
+
+```
+GitHub Primer React DOM ancestor chain (no <details> element):
+  level 0: DiffFileHeader-module__diff-file-header  ← fileHeaderMap value
+  level 1: Diff-module__diffHeaderWrapper            ← header wrapper
+  level 2: Diff-module__diffTargetable               ← full file section (header + diff body)
+```
+
+`collapseFile(header)` sets `display:none` on all children of `fileSection` except
+`headerWrapper`, then marks the section with `data-gh-breakdown-filtered`. `expandFile`
+restores them. `filteredFiles: Set<string>` tracks which files *we* collapsed so we
+don't accidentally expand files the user had manually collapsed.
 
 ### File tree line counts — `src/file_tree.ts`
 
@@ -309,7 +339,7 @@ MutationObserver, GitHub API for file data.
 - [ ] Publish to the Chrome Web Store (first manual submission pending)
 - [ ] Expand test coverage — more edge cases in `matcher.test.ts`, integration-style tests
 - [ ] Manage specific config per repo
-- [ ] Add a **show/hide icon per category row** in the widget to filter (show/hide) the matching files in GitHub's Files Changed tab
+- [x] Add a **show/hide icon per category row** in the widget to filter (show/hide) the matching files in GitHub's Files Changed tab
 - [x] Inject **`+N -N` line counts** into GitHub's PR file tree (left sidebar) next to each file and folder (folders show rolled-up totals)
 - [ ] **Firefox support** — publish to AMO; use `browser.*` API (WebExtensions) with a polyfill or conditional shim, ship a separate `manifest.firefox.json` (MV2) alongside the existing MV3 manifest, and add a Firefox build pass to `build.mjs`
 - [ ] **Category breakdown pills on PR list pages** — inject mini colored category pills on GitHub PR list views (`/pulls`) so reviewers can see the file-type composition of a PR before opening it (requires a lightweight API call per visible PR row, with caching)

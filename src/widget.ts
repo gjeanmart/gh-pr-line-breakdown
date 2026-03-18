@@ -8,6 +8,10 @@ let currentAnchor: Element | null = null;
 let shadowRoot: ShadowRoot | null = null;
 let listenerController: AbortController | null = null;
 let hideEmpty = true;
+const hiddenCategories: Set<string> = new Set();
+
+const EYE_OPEN = `<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M8 2c-1.981 0-3.671.992-4.933 2.078C1.797 5.169.88 6.423.43 7.1a1.98 1.98 0 0 0 0 1.8c.45.677 1.367 1.931 2.637 3.022C4.33 13.008 6.019 14 8 14c1.981 0 3.671-.992 4.933-2.078 1.27-1.091 2.187-2.345 2.637-3.022a1.98 1.98 0 0 0 0-1.8c-.45-.677-1.367-1.931-2.637-3.022C11.67 2.992 9.981 2 8 2ZM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0-1.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/></svg>`;
+const EYE_SLASH = `<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M8 2c-1.981 0-3.671.992-4.933 2.078C1.797 5.169.88 6.423.43 7.1a1.98 1.98 0 0 0 0 1.8c.45.677 1.367 1.931 2.637 3.022C4.33 13.008 6.019 14 8 14c1.981 0 3.671-.992 4.933-2.078 1.27-1.091 2.187-2.345 2.637-3.022a1.98 1.98 0 0 0 0-1.8c-.45-.677-1.367-1.931-2.637-3.022C11.67 2.992 9.981 2 8 2ZM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0-1.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/><line x1="2.5" y1="2.5" x2="13.5" y2="13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
 
 // ── HTML builder ──────────────────────────────────────────────────────────────
 
@@ -29,6 +33,10 @@ function buildRows(
       const pct = grandTotal > 0 ? Math.round((stats.total / grandTotal) * 100) : 0;
       const fileLabel = stats.files === 1 ? "1 file" : `${stats.files.toLocaleString()} files`;
       const emptyClass = stats.total === 0 ? " row--empty" : "";
+      const isHidden = hiddenCategories.has(cat.name);
+      const eyeIcon = isHidden ? EYE_SLASH : EYE_OPEN;
+      const eyeTitle = isHidden ? "Show files" : "Hide files";
+      const eyeClass = isHidden ? "cat-toggle cat-toggle--hidden" : "cat-toggle";
       return `
       <div class="row${emptyClass}">
         <span class="cat-name"><span class="cat-dot" style="background:${escapeHtml(cat.color ?? "#8c959f")}"></span>${escapeHtml(cat.name)}</span>
@@ -43,6 +51,7 @@ function buildRows(
         </div>
         <span class="stats"><span class="stat stat-added">+${stats.added.toLocaleString()}</span><span class="stat stat-removed">\u2212${stats.removed.toLocaleString()}</span></span>
         <span class="pct">${pct}%</span>
+        <button class="${eyeClass}" data-cat="${escapeHtml(cat.name)}" title="${eyeTitle}" aria-label="${eyeTitle}">${eyeIcon}</button>
       </div>`;
     })
     .join("");
@@ -91,14 +100,27 @@ export function renderError(kind: ApiError): void {
 
 export function renderHeaderIcon(
   breakdown: Map<Category, CategoryStats>,
-  categories: Category[]
+  categories: Category[],
+  onToggleCategory: (categoryName: string, visible: boolean) => void
 ): void {
-  setContent(buildRows(breakdown, categories), false);
+  setContent(buildRows(breakdown, categories), false, onToggleCategory);
+}
+
+export function getHiddenCategories(): ReadonlySet<string> {
+  return hiddenCategories;
+}
+
+export function resetCategoryFilter(): void {
+  hiddenCategories.clear();
 }
 
 // ── Core render ───────────────────────────────────────────────────────────────
 
-function setContent(html: string, autoShow: boolean): void {
+function setContent(
+  html: string,
+  autoShow: boolean,
+  onToggleCategory?: (categoryName: string, visible: boolean) => void
+): void {
   const anchor = findDiffstatAnchor();
   if (!anchor) return;
 
@@ -116,6 +138,25 @@ function setContent(html: string, autoShow: boolean): void {
       btn.textContent = hideEmpty ? `Show ${n} empty` : "Hide empty";
     }
   });
+
+  if (onToggleCategory) {
+    for (const btn of Array.from(shadow.querySelectorAll<HTMLElement>(".cat-toggle"))) {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const catName = btn.dataset.cat!;
+        const nowHidden = !hiddenCategories.has(catName);
+        if (nowHidden) {
+          hiddenCategories.add(catName);
+        } else {
+          hiddenCategories.delete(catName);
+        }
+        onToggleCategory(catName, !nowHidden);
+        btn.innerHTML = nowHidden ? EYE_SLASH : EYE_OPEN;
+        btn.title = nowHidden ? "Show files" : "Hide files";
+        btn.classList.toggle("cat-toggle--hidden", nowHidden);
+      });
+    }
+  }
 
   const host = document.getElementById(HOST_ID) as HTMLElement;
 
@@ -271,7 +312,7 @@ const STYLES = `
 
   .row {
     display: grid;
-    grid-template-columns: 120px 56px 1fr auto 32px;
+    grid-template-columns: 120px 56px 1fr auto 32px 20px;
     align-items: center;
     gap: 8px;
   }
@@ -337,6 +378,37 @@ const STYLES = `
 
   .rows.hide-empty .row--empty {
     display: none;
+  }
+
+  .cat-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: #8c959f;
+    opacity: 0.5;
+    border-radius: 3px;
+    width: 20px;
+    height: 20px;
+    font-family: inherit;
+    flex-shrink: 0;
+  }
+
+  .cat-toggle:hover {
+    opacity: 1;
+    background: #f6f8fa;
+  }
+
+  .cat-toggle--hidden {
+    opacity: 1;
+    color: #cf222e;
+  }
+
+  .cat-toggle--hidden:hover {
+    background: #fff0f0;
   }
 
   .footer {

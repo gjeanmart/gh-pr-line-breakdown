@@ -47,6 +47,7 @@ By default, unauthenticated API calls are limited to **60 requests/hour**. For p
 - **GitLab support** — bring the same breakdown widget and file badges to GitLab merge request pages (`gitlab.com` and self-hosted instances)
 - **Gitea / Forgejo support** — extend to self-hosted Gitea and Forgejo instances, with configurable instance URLs in Settings
 - **Repo-specific config** — define different category rules per repository
+- **Commit page support** — bring the same breakdown widget and file badges to GitHub commit pages, using the commits API to fetch changed files
 - **UI/UX polish** — design improvements to the widget and options page
 
 ## Getting Started

@@ -347,6 +347,7 @@ MutationObserver, GitHub API for file data.
 - [ ] **GitHub classic experience support** — the widget anchor detection and badge injection currently target Primer React DOM selectors only (`[class*="diffStatesWrap"]`, `button[aria-label^="Expand all lines"]`, etc.). Add fallback selectors for the classic GitHub UI so the extension works regardless of which experience the user has opted into.
 - [ ] **GitLab support** — extend to GitLab MR pages (`gitlab.com` + self-hosted); abstract the host-specific API client and DOM injection behind a provider interface (`GitHubProvider`, `GitLabProvider`) so `content_script.ts` stays provider-agnostic. GitLab REST API: `GET /projects/:id/merge_requests/:iid/changes`.
 - [ ] **Gitea support** — extend to Gitea/Forgejo instances (self-hosted); add a `GiteaProvider` using `GET /repos/{owner}/{repo}/pulls/{index}/files`. User configures instance URLs in the Settings tab.
+- [ ] **Commit page support** — extend the extension to work on GitHub commit pages (`github.com/{owner}/{repo}/commit/{sha}`); fetch changed files via `GET /repos/{owner}/{repo}/commits/{sha}` and render the same breakdown widget and file badges as on PR pages.
 
 ---
 

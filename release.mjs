@@ -46,7 +46,9 @@ run('git add package.json manifest.json');
 run(`git commit -m "chore: bump version to v${version}"`);
 
 console.log(`\n▶ Tagging v${version}…`);
-run(`git tag v${version}`);
+// Pass a message so this works with tag.gpgSign / tag.forceSignAnnotated set: a signed
+// tag is annotated, and an annotated tag without -m needs an editor to write one.
+run(`git tag -m "v${version}" v${version}`);
 
 // 5. Push commit + tag
 console.log('\n▶ Pushing to origin…');

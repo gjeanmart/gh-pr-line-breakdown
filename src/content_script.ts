@@ -1,7 +1,7 @@
 import { loadConfig } from "./config.js";
 import { buildBreakdown, classifyFile } from "./matcher.js";
 import { renderHeaderIcon, renderLoadingState, renderError, getHiddenCategories, resetCategoryFilter } from "./widget.js";
-import { fetchPrFilesFromApi } from "./github_api.js";
+import { fetchPrFilesFromApi, fetchCommitFilesFromApi } from "./github_api.js";
 import { injectBadges, clearBadges, setFilesVisible } from "./badges.js";
 import { injectTreeCounts, clearTreeCounts } from "./file_tree.js";
 import type { Config, Category } from "./config.js";
@@ -10,7 +10,7 @@ import type { FileEntry } from "./matcher.js";
 let currentConfig: Config | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-// API result cache — keyed by PR URL path, reset on navigation to a different PR
+// API result cache — keyed by PR or commit URL path, reset on navigation
 let cachedPrPath: string | null = null;
 let cachedFiles: FileEntry[] | null = null;
 let cachedError: boolean = false;
@@ -25,19 +25,20 @@ async function init(): Promise<void> {
 async function runBreakdown(): Promise<void> {
   if (!currentConfig) return;
 
-  const prPath = getPrPath();
-  if (!prPath) return;
+  const currentPath = getCurrentPath();
+  if (!currentPath) return;
 
-  if (prPath !== cachedPrPath) {
-    // New PR — show loading state immediately, then fetch
-    cachedPrPath = prPath;
+  if (currentPath !== cachedPrPath) {
+    // New PR or commit — show loading state immediately, then fetch
+    cachedPrPath = currentPath;
     cachedFiles = null;
     cachedError = false;
     resetCategoryFilter();
     clearBadges();
     clearTreeCounts();
     renderLoadingState();
-    const result = await fetchPrFilesFromApi(currentConfig.githubToken);
+    const fetchFn = getCommitPath() ? fetchCommitFilesFromApi : fetchPrFilesFromApi;
+    const result = await fetchFn(currentConfig.githubToken);
     if (!result) return;
     if ("error" in result) {
       cachedError = true;
@@ -83,14 +84,23 @@ function getPrPath(): string | null {
   return match ? match[0] : null;
 }
 
+function getCommitPath(): string | null {
+  const match = window.location.pathname.match(/^\/[^/]+\/[^/]+\/commit\/[0-9a-f]+/i);
+  return match ? match[0] : null;
+}
+
+function getCurrentPath(): string | null {
+  return getPrPath() ?? getCommitPath();
+}
+
 function observeChanges(): void {
   // Observe document.body so tab switches (any PR tab) always trigger re-renders.
   const observer = new MutationObserver(() => {
-    // Detect SPA navigation to a different PR
+    // Detect SPA navigation to a different PR or commit
     if (location.href !== lastHref) {
       lastHref = location.href;
-      const newPrPath = getPrPath();
-      if (newPrPath !== cachedPrPath) {
+      const newPath = getCurrentPath();
+      if (newPath !== cachedPrPath) {
         cachedPrPath = null;
         cachedFiles = null;
         cachedError = false;

@@ -10,7 +10,12 @@ let currentAnchor: Element | null = null;
 let shadowRoot: ShadowRoot | null = null;
 let listenerController: AbortController | null = null;
 let hideEmpty = true;
+let showErrorMarker = false;
 const hiddenCategories: Set<string> = new Set();
+
+// A dot placed on GitHub's diffstat chip when the breakdown could not be loaded. The popup
+// only opens on hover, so without this an API failure is completely silent.
+const MARKER_CLASS = "gh-breakdown-alert";
 
 const EYE_OPEN = `<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M8 2c-1.981 0-3.671.992-4.933 2.078C1.797 5.169.88 6.423.43 7.1a1.98 1.98 0 0 0 0 1.8c.45.677 1.367 1.931 2.637 3.022C4.33 13.008 6.019 14 8 14c1.981 0 3.671-.992 4.933-2.078 1.27-1.091 2.187-2.345 2.637-3.022a1.98 1.98 0 0 0 0-1.8c-.45-.677-1.367-1.931-2.637-3.022C11.67 2.992 9.981 2 8 2ZM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0-1.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/></svg>`;
 const EYE_SLASH = `<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M8 2c-1.981 0-3.671.992-4.933 2.078C1.797 5.169.88 6.423.43 7.1a1.98 1.98 0 0 0 0 1.8c.45.677 1.367 1.931 2.637 3.022C4.33 13.008 6.019 14 8 14c1.981 0 3.671-.992 4.933-2.078 1.27-1.091 2.187-2.345 2.637-3.022a1.98 1.98 0 0 0 0-1.8c-.45-.677-1.367-1.931-2.637-3.022C11.67 2.992 9.981 2 8 2ZM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0-1.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/><line x1="2.5" y1="2.5" x2="13.5" y2="13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
@@ -84,6 +89,7 @@ function buildRows(
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export function renderLoadingState(): void {
+  showErrorMarker = false;
   setContent(`<div class="loading"><span class="spinner"></span>Loading\u2026</div>`);
 }
 
@@ -96,6 +102,7 @@ const ERROR_MESSAGES: Record<ApiError, string> = {
 };
 
 export function renderError(kind: ApiError): void {
+  showErrorMarker = true;
   const msg = ERROR_MESSAGES[kind];
   setContent(`<div class="error"><span class="error-icon">&#9888;</span>${escapeHtml(msg)}</div>`);
 }
@@ -105,6 +112,7 @@ export function renderHeaderIcon(
   categories: Category[],
   onToggleCategory: (categoryName: string, visible: boolean) => void
 ): void {
+  showErrorMarker = false;
   setContent(buildRows(breakdown, categories), onToggleCategory);
 }
 
@@ -128,6 +136,7 @@ function setContent(
   if (!anchor) return;
 
   (anchor as HTMLElement).style.cursor = "pointer";
+  syncErrorMarker(anchor);
 
   const shadow = ensureShadow();
   shadow.querySelector<HTMLElement>(".popup")!.innerHTML = html;
@@ -172,6 +181,35 @@ function setContent(
   if (host.style.display === "block") positionHost(host, anchor);
 }
 
+// The marker lives in GitHub's own chip, so it is styled inline like the badges and the
+// tree counts, and it takes its red from GitHub's theme.
+function syncErrorMarker(anchor: Element): void {
+  const existing = anchor.querySelector(`.${MARKER_CLASS}`);
+
+  if (!showErrorMarker) {
+    existing?.remove();
+    return;
+  }
+  if (existing) return;
+
+  const dot = document.createElement("span");
+  dot.className = MARKER_CLASS;
+  dot.setAttribute("role", "img");
+  dot.setAttribute("aria-label", "Line breakdown unavailable");
+  dot.title = "Line breakdown unavailable — hover for details";
+  dot.style.cssText = [
+    "display:inline-block",
+    "width:7px",
+    "height:7px",
+    "border-radius:50%",
+    "margin-left:6px",
+    "vertical-align:middle",
+    "flex-shrink:0",
+    "background:var(--fgColor-danger, var(--color-danger-fg, #cf222e))",
+  ].join(";");
+  anchor.appendChild(dot);
+}
+
 function positionHost(host: HTMLElement, anchor: Element): void {
   const rect = anchor.getBoundingClientRect();
   host.style.top = `${rect.bottom + window.scrollY + 8}px`;
@@ -203,9 +241,13 @@ function bindHoverListeners(host: HTMLElement, anchor: Element): void {
 }
 
 function ensureShadow(): ShadowRoot {
-  if (shadowRoot) return shadowRoot;
+  // The cached root is only usable while its host is still in the document. If something
+  // replaced the page's body under us, the cached root is attached to a detached host and
+  // every later render would write into nothing — so rebuild instead.
+  const existing = document.getElementById(HOST_ID);
+  if (shadowRoot && existing?.shadowRoot === shadowRoot) return shadowRoot;
 
-  document.getElementById(HOST_ID)?.remove();
+  existing?.remove();
 
   const host = document.createElement("div");
   host.id = HOST_ID;

@@ -3,7 +3,7 @@ import { buildBreakdown, classifyFile } from "./matcher.js";
 import { renderHeaderIcon, renderLoadingState, renderError, getHiddenCategories, resetCategoryFilter } from "./widget.js";
 import { fetchFiles } from "./github_api.js";
 import { parseGitHubPage } from "./page.js";
-import { injectBadges, clearBadges, setFilesVisible } from "./badges.js";
+import { injectBadges, clearBadges, setFilesVisible, restoreFilteredFiles } from "./badges.js";
 import { injectTreeCounts, clearTreeCounts } from "./file_tree.js";
 import type { Config, Category } from "./config.js";
 import type { FileEntry } from "./matcher.js";
@@ -22,6 +22,38 @@ async function init(): Promise<void> {
   currentConfig = await loadConfig();
   await runBreakdown();
   observeChanges();
+  watchConfigChanges();
+}
+
+// Saving in the options page used to change nothing until every GitHub tab was reloaded,
+// which reads as the extension being broken rather than as a stale cache.
+function watchConfigChanges(): void {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    const categoriesChanged = area === "sync" && "config" in changes;
+    const tokenChanged = area === "local" && "githubToken" in changes;
+    if (!categoriesChanged && !tokenChanged) return;
+    void applyNewConfig(tokenChanged);
+  });
+}
+
+async function applyNewConfig(refetch: boolean): Promise<void> {
+  currentConfig = await loadConfig();
+
+  // Badges carry the old names and colours, and the filter refers to categories that may no
+  // longer exist — so undo our collapses first, then start the page's annotations over.
+  restoreFilteredFiles();
+  resetCategoryFilter();
+  clearBadges();
+  clearTreeCounts();
+
+  // A new token can unlock a repo that just failed, so that one needs the data again.
+  if (refetch) {
+    cachedPath = null;
+    cachedFiles = null;
+    cachedError = false;
+  }
+
+  await runBreakdown();
 }
 
 async function runBreakdown(): Promise<void> {

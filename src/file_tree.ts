@@ -16,17 +16,20 @@ interface LineStats {
  * [role="treeitem"] <li>, so we can match files and folders directly without
  * hashing. Folder stats are rolled up from all files under that path prefix.
  *
+ * Returns the number of counts injected, so the caller can tell whether the page changed.
+ *
  * The count is injected into the item's content row
  * (div[class*="TreeView-item-content"]), which is a flex container, so
  * margin-left:auto pushes the count to the right edge.
  */
-export function injectTreeCounts(files: FileEntry[]): void {
-  if (files.length === 0) return;
+export function injectTreeCounts(files: FileEntry[]): number {
+  if (files.length === 0) return 0;
 
   const treeRoot = findFileTree();
-  if (!treeRoot) return;
+  if (!treeRoot) return 0;
 
   const { fileMap, folderMap } = buildMaps(files);
+  let injected = 0;
 
   for (const item of Array.from(treeRoot.querySelectorAll<HTMLElement>('[role="treeitem"]'))) {
     if (item.querySelector(`.${TREE_COUNT_CLASS}`)) continue;
@@ -41,7 +44,10 @@ export function injectTreeCounts(files: FileEntry[]): void {
     // Fall back to the <li> itself if the inner div isn't found.
     const row = item.querySelector<HTMLElement>('[class*="TreeView-item-content"]') ?? item;
     row.appendChild(createCount(stats));
+    injected++;
   }
+
+  return injected;
 }
 
 export function clearTreeCounts(): void {

@@ -17,13 +17,14 @@ const fileHeaderMap: Map<string, HTMLElement> = new Map();
 // not files the user had already manually collapsed.
 const filteredFiles: Set<string> = new Set();
 
-export async function injectBadges(files: FileEntry[], categories: Category[]): Promise<void> {
+export async function injectBadges(files: FileEntry[], categories: Category[]): Promise<number> {
   const fileMap = new Map<string, Category>();
   for (const file of files) {
     fileMap.set(file.filename, classifyFile(file.filename, categories));
   }
   // Per-call set: prevents two strategies from processing the same path in one call.
   const injectedPaths = new Set<string>();
+  let injected = 0;
 
   // === Classic GitHub UI: .file-header[data-path] ===
   for (const header of Array.from(document.querySelectorAll<HTMLElement>(".file-header[data-path]"))) {
@@ -37,6 +38,7 @@ export async function injectBadges(files: FileEntry[], categories: Category[]): 
     if (!header.querySelector(`.${BADGE_CLASS}`)) {
       header.setAttribute(INJECTED_ATTR, "1");
       (header.querySelector(".file-info") ?? header).appendChild(createBadge(category));
+      injected++;
     }
   }
 
@@ -54,6 +56,7 @@ export async function injectBadges(files: FileEntry[], categories: Category[]): 
     fileHeaderMap.set(path, headerContainer);
     if (!headerContainer.querySelector(`.${BADGE_CLASS}`)) {
       insertBadge(headerContainer, createBadge(category));
+      injected++;
     }
   }
 
@@ -74,31 +77,35 @@ export async function injectBadges(files: FileEntry[], categories: Category[]): 
     fileHeaderMap.set(blobPath, headerContainer);
     if (!headerContainer.querySelector(`.${BADGE_CLASS}`)) {
       insertBadge(headerContainer, createBadge(category));
+      injected++;
     }
   }
 
   // === New GitHub Primer UI — Strategy 3 ===
   // For files without an expand button and no full blob URL (e.g. new files with all additions),
   // the file header contains a "#diff-{sha256(path)}" anchor.
-  const hashMap = await buildHashMap(fileMap);
+  const pathByHash = await pathsByDiffHash(files);
   for (const anchor of Array.from(document.querySelectorAll<HTMLElement>('a[href^="#diff-"]'))) {
     const href = anchor.getAttribute("href") ?? "";
-    const hash = href.slice(6); // remove "#diff-"
-    const entry = hashMap.get(hash);
-    if (!entry || injectedPaths.has(entry.filePath)) continue;
+    const path = pathByHash.get(href.slice(6)); // remove "#diff-"
+    const category = path ? fileMap.get(path) : undefined;
+    if (!path || !category || injectedPaths.has(path)) continue;
     if (anchor.closest(`[${INJECTED_ATTR}]`)) continue;
     const headerContainer = findHeaderContainer(anchor);
     if (!headerContainer) continue;
-    injectedPaths.add(entry.filePath);
-    fileHeaderMap.set(entry.filePath, headerContainer);
+    injectedPaths.add(path);
+    fileHeaderMap.set(path, headerContainer);
     if (!headerContainer.querySelector(`.${BADGE_CLASS}`)) {
-      insertBadge(headerContainer, createBadge(entry.category));
+      insertBadge(headerContainer, createBadge(category));
+      injected++;
     }
   }
 
   // Remove within-call markers so the NEXT injectBadges() call can refresh fileHeaderMap
   // (React may re-render containers between calls; markers must not block refreshes).
   document.querySelectorAll(`[${INJECTED_ATTR}]`).forEach((el) => el.removeAttribute(INJECTED_ATTR));
+
+  return injected;
 }
 
 export function clearBadges(): void {
@@ -126,17 +133,20 @@ export function setFilesVisible(filenames: string[], visible: boolean): void {
   }
 }
 
-async function buildHashMap(
-  fileMap: Map<string, Category>
-): Promise<Map<string, { filePath: string; category: Category }>> {
-  const map = new Map<string, { filePath: string; category: Category }>();
-  await Promise.all(
-    Array.from(fileMap.entries()).map(async ([filePath, category]) => {
-      const hash = await sha256hex(filePath);
-      map.set(hash, { filePath, category });
-    })
-  );
-  return map;
+// Strategy 3 hashes every path in the PR with SHA-256. The file list is stable for the
+// whole page, so the map is cached against it rather than rebuilt on every pass.
+const hashMapCache = new WeakMap<FileEntry[], Promise<Map<string, string>>>();
+
+function pathsByDiffHash(files: FileEntry[]): Promise<Map<string, string>> {
+  const cached = hashMapCache.get(files);
+  if (cached) return cached;
+
+  const building = Promise.all(
+    files.map(async (file) => [await sha256hex(file.filename), file.filename] as const)
+  ).then((pairs) => new Map(pairs));
+
+  hashMapCache.set(files, building);
+  return building;
 }
 
 async function sha256hex(str: string): Promise<string> {

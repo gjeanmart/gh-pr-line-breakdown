@@ -298,6 +298,30 @@ pushes the count to the right edge of the row.
 
 `clearTreeCounts()` removes all injected spans when navigating to a new PR.
 
+### Performance notes
+
+The content script re-runs its whole pass after every settled batch of DOM mutations, so
+per-pass cost matters. Three caches keep it cheap:
+
+| Cache | Where | Why |
+| --- | --- | --- |
+| Compiled globs, by pattern | `matcher.ts` `regexCache` | classifying 3,000 files against 84 patterns compiled ~250k identical RegExps per pass |
+| Classification, by category-array identity then filename | `matcher.ts` `classifyCache` | `buildBreakdown`, `buildFilesByCategory` and `injectBadges` each classify the same list |
+| SHA-256 diff hashes, by file-list identity | `badges.ts` `hashMapCache` | strategy 3 hashes every path in the PR |
+
+Measured on a synthetic 3,000-file PR with the default categories: **248 ms → 16 ms per
+pass** (15x), cold cache each pass. That time was being spent on the page's main thread.
+
+Both `matcher.ts` caches key on **identity**, so a fresh `loadConfig()` result gets a fresh
+cache. Mutating a category's `patterns` array in place would serve stale results — call
+`resetMatcherCaches()` if you ever need that.
+
+`injectBadges` and `injectTreeCounts` return how many elements they injected. When that is
+non-zero the content script calls `observer.takeRecords()` to discard the mutation records
+its own writes just produced, which otherwise schedule another pass that finds nothing to
+do. Real GitHub mutations queued in the same window are discarded too — acceptable, since
+its lazy rendering always follows up with more.
+
 ### MutationObserver
 
 Observes `document.body` (not a scoped element) so it fires on every PR tab:
@@ -328,7 +352,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 npm install
 npm run build          # outputs to dist/
-npm run test           # vitest unit tests (59 tests)
+npm run test           # vitest unit tests (63 tests)
 ```
 
 To load in Chrome:

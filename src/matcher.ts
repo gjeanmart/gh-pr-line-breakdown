@@ -13,7 +13,37 @@ export type CategoryStats = {
   files: number;
 };
 
+// Compiled globs, keyed by pattern. Classifying a 3,000-file PR against ~80 patterns
+// otherwise compiles a quarter of a million identical RegExps — per pass, and the content
+// script runs a pass after every settled batch of DOM mutations.
+const regexCache = new Map<string, RegExp>();
+
+// Classification results, keyed by the category array's identity then by filename. Each
+// pass classifies the same file list three times over (buildBreakdown, buildFilesByCategory,
+// injectBadges); this collapses that to once. Keyed on identity, so a fresh config object
+// from loadConfig() gets a fresh cache — but mutating a category's patterns in place would
+// serve stale results, hence resetMatcherCaches() for tests.
+let classifyCache = new WeakMap<Category[], Map<string, Category>>();
+
+/** Drop memoized globs and classifications. Only needed when categories mutate in place. */
+export function resetMatcherCaches(): void {
+  regexCache.clear();
+  classifyCache = new WeakMap();
+}
+
+function globRegex(pattern: string): RegExp {
+  const cached = regexCache.get(pattern);
+  if (cached) return cached;
+  const compiled = new RegExp(`^${globToRegexSource(pattern)}$`);
+  regexCache.set(pattern, compiled);
+  return compiled;
+}
+
 function globMatch(path: string, pattern: string): boolean {
+  return globRegex(pattern).test(path);
+}
+
+function globToRegexSource(pattern: string): string {
   let regex = "";
   let i = 0;
   while (i < pattern.length) {
@@ -43,10 +73,24 @@ function globMatch(path: string, pattern: string): boolean {
       i++;
     }
   }
-  return new RegExp(`^${regex}$`).test(path);
+  return regex;
 }
 
 export function classifyFile(filename: string, categories: Category[]): Category {
+  let cache = classifyCache.get(categories);
+  if (!cache) {
+    cache = new Map<string, Category>();
+    classifyCache.set(categories, cache);
+  }
+  const cached = cache.get(filename);
+  if (cached) return cached;
+
+  const category = classifyUncached(filename, categories);
+  cache.set(filename, category);
+  return category;
+}
+
+function classifyUncached(filename: string, categories: Category[]): Category {
   for (const category of categories) {
     if (category.fallback) continue;
     for (const pattern of category.patterns) {

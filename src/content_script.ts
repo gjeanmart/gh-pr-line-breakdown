@@ -10,6 +10,7 @@ import type { FileEntry } from "./matcher.js";
 
 let currentConfig: Config | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+let observer: MutationObserver | null = null;
 
 // API result cache — keyed by PR or commit page path, reset on navigation
 let cachedPath: string | null = null;
@@ -58,8 +59,13 @@ async function runBreakdown(): Promise<void> {
     setFilesVisible(filesByCategory.get(catName) ?? [], visible);
   });
 
-  await injectBadges(cachedFiles, categories);
-  injectTreeCounts(cachedFiles);
+  const written = (await injectBadges(cachedFiles, categories)) + injectTreeCounts(cachedFiles);
+
+  // Badges and tree counts are page mutations of our own making. Left queued they schedule
+  // another full pass, which finds nothing to do and mutates nothing — so drop them here
+  // and break the cycle. (Real GitHub mutations queued in the same window are dropped too;
+  // its lazy rendering always follows up with more, so nothing stays missing for long.)
+  if (written > 0) observer?.takeRecords();
 
   // Re-apply any active category filters to the freshly-injected DOM
   const hidden = getHiddenCategories();
@@ -80,7 +86,7 @@ function buildFilesByCategory(files: FileEntry[], categories: Category[]): Map<s
 
 function observeChanges(): void {
   // Observe document.body so tab switches (any PR tab) always trigger re-renders.
-  const observer = new MutationObserver(() => {
+  observer = new MutationObserver(() => {
     // Detect SPA navigation to a different PR or commit
     if (location.href !== lastHref) {
       lastHref = location.href;

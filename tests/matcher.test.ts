@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyFile, buildBreakdown } from "../src/matcher.js";
+import { classifyFile, buildBreakdown, resetMatcherCaches } from "../src/matcher.js";
 import { DEFAULT_CONFIG, type Category } from "../src/config.js";
 
 const { categories } = DEFAULT_CONFIG;
@@ -122,5 +122,33 @@ describe("buildBreakdown", () => {
     for (const cat of categories) {
       expect(result.get(cat)!.total).toBe(0);
     }
+  });
+});
+
+describe("classification memoization", () => {
+  const ts = (name: string): Category[] => [
+    { name, patterns: ["**/*.ts"] },
+    { name: "Rest", patterns: ["**/*"], fallback: true },
+  ];
+
+  it("keeps results separate per category set", () => {
+    // Same filename, two different configs — the memo is keyed on the category array
+    expect(classifyFile("src/x.ts", ts("First")).name).toBe("First");
+    expect(classifyFile("src/x.ts", ts("Second")).name).toBe("Second");
+  });
+
+  it("returns a stable result for repeated lookups", () => {
+    expect(classifyFile("a/b.test.ts", categories)).toBe(classifyFile("a/b.test.ts", categories));
+  });
+
+  it("still classifies correctly after the caches are dropped", () => {
+    const before = classifyFile("docs/readme.md", categories);
+    resetMatcherCaches();
+    expect(classifyFile("docs/readme.md", categories)).toBe(before);
+  });
+
+  it("classifies a large file list consistently", () => {
+    const names = Array.from({ length: 500 }, (_, i) => `src/module${i}.test.ts`);
+    expect(names.every((n) => classifyFile(n, categories) === tests)).toBe(true);
   });
 });

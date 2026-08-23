@@ -35,6 +35,7 @@ gh-pr-line-breakdown/
 ├── tests/
 │   ├── matcher.test.ts     # vitest unit tests for matcher logic
 │   ├── anchor.test.ts      # jsdom tests for diffstat anchor detection
+│   ├── widget.test.ts      # jsdom tests for popup hover behaviour
 │   └── fixtures/           # captured GitHub markup (PR header, commit header)
 ├── package.json
 ├── tsconfig.json
@@ -169,11 +170,16 @@ the widget styles from GitHub's page.
 listeners on both the anchor and the host whenever the anchor changes (avoids accumulating
 duplicate listeners across React re-renders).
 
-**Loading pattern**: when a new PR is detected, `renderLoadingState()` auto-shows the
-popup immediately with a spinner (`autoShow: true`). Once the API call completes,
-`renderHeaderIcon()` updates the content in-place without auto-showing (`autoShow: false`),
-letting hover behaviour take over. On API error, `renderError(kind)` auto-shows the popup
-with a contextual red message (also `autoShow: true`).
+**Hover-only**: the popup is opened by hover and nothing else. `renderLoadingState()`,
+`renderHeaderIcon()` and `renderError(kind)` only write content into the shadow root — they
+never change `display`. Auto-showing on load used to pop the widget open every time you
+navigated from a PR list into a PR, which is exactly when nobody asked for it.
+
+Consequence to keep in mind: an API error (rate limit, private repo) is only visible if the
+user hovers the diffstat. There is no other error surface yet.
+
+While the popup is open, replacing its content re-runs `positionHost()` so the box stays
+anchored as it changes height (loading spinner -> full row list).
 
 **Widget layout** (6-column CSS grid per row):
 `120px cat-name | 56px cat-files | 1fr bar-track | auto stats | 32px pct | 20px eye-toggle`
@@ -293,7 +299,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 npm install
 npm run build          # outputs to dist/
-npm run test           # vitest unit tests (29 tests)
+npm run test           # vitest unit tests (35 tests)
 ```
 
 To load in Chrome:

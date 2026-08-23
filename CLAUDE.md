@@ -20,12 +20,14 @@ gh-pr-line-breakdown/
 │   ├── widget.ts           # hover popup rendering (anchored to diffstat)
 │   ├── anchor.ts           # locates GitHub's +N −N diffstat element (DOM-only, testable)
 │   ├── collapse.ts         # drives GitHub's own per-file collapse control
+│   ├── color.ts            # category colour safety + readable badge text (pure)
 │   ├── badges.ts           # injects colored category pill badges into file diff headers
 │   ├── file_tree.ts        # injects +N -N line counts into the PR file tree sidebar
 │   ├── matcher.ts          # wildcard category matching (custom globMatch, no deps)
 │   ├── config.ts           # Category/Config types, defaults, chrome.storage helpers
 │   ├── github_api.ts       # fetches PR / commit files via GitHub REST API (paginated)
 │   ├── page.ts             # which GitHub page are we on (pure URL parsing)
+│   ├── theme.css           # shared palette for the popup + options pages
 │   ├── popup/
 │   │   ├── popup.html
 │   │   └── popup.ts        # breakdown view + show/hide empty toggle + "Open Options" button
@@ -41,6 +43,7 @@ gh-pr-line-breakdown/
 │   ├── collapse.test.ts    # jsdom tests for the collapse control
 │   ├── page.test.ts        # URL parsing (pure, no DOM)
 │   ├── filter.test.ts      # end-to-end: badges + collapse over captured markup
+│   ├── color.test.ts       # colour sanitising + contrast (pure)
 │   └── fixtures/           # captured GitHub markup (PR header, commit header)
 ├── package.json
 ├── tsconfig.json
@@ -183,7 +186,9 @@ inactive one with a container query, so an invisible clone would otherwise win t
 jsdom, which has no layout engine — that would make the module untestable.
 
 The shadow host (`div#gh-line-breakdown-host`) is appended to `document.body` with
-`position: absolute`. The shadow root contains the `<style>` block and a `.popup` div.
+`position: absolute`. `ensureShadow()` only reuses its cached root while that root's host is
+still the element in the document — otherwise anything that replaced the page body would
+leave every later render writing into a detached tree, permanently. The shadow root contains the `<style>` block and a `.popup` div.
 This avoids `overflow: hidden` clipping from ancestor containers and fully isolates
 the widget styles from GitHub's page.
 
@@ -196,8 +201,10 @@ duplicate listeners across React re-renders).
 never change `display`. Auto-showing on load used to pop the widget open every time you
 navigated from a PR list into a PR, which is exactly when nobody asked for it.
 
-Consequence to keep in mind: an API error (rate limit, private repo) is only visible if the
-user hovers the diffstat. There is no other error surface yet.
+Because of that, a failure needs a signal outside the popup: `renderError` puts a 7px red dot
+(`.gh-breakdown-alert`, in GitHub's own danger colour) on the diffstat chip, and `setContent`
+re-applies it on every render since React replaces that chip often. `renderLoadingState` and
+`renderHeaderIcon` clear it.
 
 While the popup is open, replacing its content re-runs `positionHost()` so the box stays
 anchored as it changes height (loading spinner -> full row list).
@@ -319,6 +326,55 @@ pushes the count to the right edge of the row.
 
 `clearTreeCounts()` removes all injected spans when navigating to a new PR.
 
+### Theming
+
+Two different mechanisms, because the surfaces live in two different worlds.
+
+**Injected into a GitHub page** — the widget, the header badges, the tree counts — read
+**GitHub's own theme variables**, so they follow whatever theme the reader picked, dimmed and
+high-contrast variants included, with no palette of our own to keep in sync:
+
+```css
+background: var(--bgColor-default, var(--color-canvas-default, #ffffff));
+color:      var(--fgColor-muted,   var(--color-fg-muted,       #656d76));
+```
+
+The chain is deliberate: current Primer name, then the pre-rename name (still current on older
+GitHub Enterprise), then the literal we used before — so a rename degrades to today's
+appearance rather than to nothing. Custom properties **inherit through a shadow boundary** and
+are **not** reset by `all: initial`, which is why this works inside the widget's shadow root.
+
+**The extension's own pages** — popup and options — have no host to inherit from, so
+`src/theme.css` carries the palette: GitHub's light and dark values as tokens, one file,
+linked by both HTML pages and copied to `dist/` by `build.mjs`. `options.css` and the
+`<style>` block in `popup.html` reference tokens only.
+
+Two tokens are deliberately theme-invariant: `--fg-on-emphasis` (white text on a saturated
+button, never on the page) and the toast, which uses `--fg` as background and `--bg` as text
+so it inverts with the theme on purpose.
+
+**Badge text** is not part of either palette — it is computed. `readableTextColor()` in
+`color.ts` picks black or white by WCAG contrast against the badge colour, because a pale
+category colour used to render white-on-near-white. Two defaults come out dark rather than
+white — Generated / Other and CI/CD — and `color.test.ts` pins the whole mapping.
+
+**Category colours are sanitised.** `safeCssColor()` admits hex and nothing else. Colours
+reach four DOM sites (badge inline style, widget swatch, popup swatch, options input value)
+and an imported config file could otherwise smuggle in a value that closes the attribute or
+appends declarations. The options page's colour input only ever produces `#rrggbb`, so
+nothing legitimate is refused.
+
+### Reacting to settings changes
+
+`chrome.storage.onChanged` in the content script re-reads the config and restarts the page's
+annotations, so saving in the options page no longer requires reloading every GitHub tab.
+
+- categories changed → re-render only
+- token changed → also drop the API cache, since a new token can unlock a repo that just failed
+- either way, `restoreFilteredFiles()` expands whatever the filter had collapsed first —
+  badges carry the old names and colours, and the filter may refer to categories that no
+  longer exist
+
 ### Performance notes
 
 The content script re-runs its whole pass after every settled batch of DOM mutations, so
@@ -373,7 +429,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 npm install
 npm run build          # outputs to dist/
-npm run test           # vitest unit tests (69 tests)
+npm run test           # vitest unit tests (83 tests)
 ```
 
 To load in Chrome:

@@ -9,11 +9,13 @@ A Chrome extension that shows a line-count breakdown widget on GitHub PR pages, 
 
 ## How it works
 
-The extension fetches the list of changed files from the GitHub REST API and classifies each file against your configured categories using glob patterns. The results appear as a hover popup anchored to the native `+N -N ████` diffstat shown in the PR header — visible on every PR tab (Conversation, Commits, Checks, Files Changed).
+The extension fetches the list of changed files from the GitHub REST API and classifies each file against your configured categories using glob patterns. The results appear as a popup anchored to the native `+N -N ████` diffstat — point at that diffstat to open it. It works on every PR tab (Conversation, Commits, Checks, Files Changed) and on commit pages (`/commit/{sha}`), and it follows your GitHub theme, including the dimmed and high-contrast variants.
 
 The popup header shows the total line and file counts across all categories. Each category row shows its file count, a proportional bar chart, added/removed line counts, a percentage of total lines changed, and an eye icon to collapse/expand all matching files in the Files Changed tab.
 
-On the Files Changed tab, `+N −N` line counts are also injected directly into the PR file tree sidebar next to every file and folder. Folder counts roll up all files underneath them.
+On the Files Changed tab, `+N −N` line counts are also injected directly into the file tree sidebar next to every file and folder. Folder counts roll up all files underneath them.
+
+If the breakdown can't be loaded — a rate limit, or a private repo without a token — a small red dot appears on the diffstat; hover it for the reason.
 
 Files are classified into categories evaluated in order — the first matching glob pattern wins. Default categories:
 
@@ -31,7 +33,7 @@ Files are classified into categories evaluated in order — the first matching g
 
 The options page (click the extension icon → **Open Options**) has two tabs:
 
-- **Categories** — add, remove, reorder (drag and drop), edit glob patterns, and pick a color per category. The color is displayed as a pill badge on each file diff header and as a small swatch in the hover widget and popup. Changes take effect on the next PR page load.
+- **Categories** — add, remove, reorder (drag and drop), edit glob patterns, and pick a color per category. The color is displayed as a pill badge on each file diff header and as a small swatch in the hover widget and popup; badge text is black or white depending on which reads better against your color. Saved changes apply immediately to any open PR or commit page — no reload needed.
 - **Settings** — GitHub token, and import/export of your category config as JSON.
 
 You can **export** your categories to a JSON file to back them up or share them across browsers. **Importing** a file replaces your current categories — you can review the result before saving. The GitHub token is never included in exports.
@@ -47,7 +49,6 @@ By default, unauthenticated API calls are limited to **60 requests/hour**. For p
 - **GitLab support** — bring the same breakdown widget and file badges to GitLab merge request pages (`gitlab.com` and self-hosted instances)
 - **Gitea / Forgejo support** — extend to self-hosted Gitea and Forgejo instances, with configurable instance URLs in Settings
 - **Repo-specific config** — define different category rules per repository
-- **Commit page support** — bring the same breakdown widget and file badges to GitHub commit pages, using the commits API to fetch changed files
 - **UI/UX polish** — design improvements to the widget and options page
 
 ## Getting Started

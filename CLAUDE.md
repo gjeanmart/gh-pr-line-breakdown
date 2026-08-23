@@ -24,7 +24,8 @@ gh-pr-line-breakdown/
 │   ├── file_tree.ts        # injects +N -N line counts into the PR file tree sidebar
 │   ├── matcher.ts          # wildcard category matching (custom globMatch, no deps)
 │   ├── config.ts           # Category/Config types, defaults, chrome.storage helpers
-│   ├── github_api.ts       # fetches PR files via GitHub REST API (paginated)
+│   ├── github_api.ts       # fetches PR / commit files via GitHub REST API (paginated)
+│   ├── page.ts             # which GitHub page are we on (pure URL parsing)
 │   ├── popup/
 │   │   ├── popup.html
 │   │   └── popup.ts        # breakdown view + show/hide empty toggle + "Open Options" button
@@ -38,6 +39,7 @@ gh-pr-line-breakdown/
 │   ├── anchor.test.ts      # jsdom tests for diffstat anchor detection
 │   ├── widget.test.ts      # jsdom tests for popup hover behaviour
 │   ├── collapse.test.ts    # jsdom tests for the collapse control
+│   ├── page.test.ts        # URL parsing (pure, no DOM)
 │   └── fixtures/           # captured GitHub markup (PR header, commit header)
 ├── package.json
 ├── tsconfig.json
@@ -108,10 +110,26 @@ scraping, which misses lazily-loaded files on large PRs.
   Private repos require a `repo`-scoped token.
 - Results are **cached per PR path** (`cachedPrPath` / `cachedFiles`). Navigating to a
   different PR invalidates the cache.
-- On failure, `fetchPrFilesFromApi` returns a typed `ApiError` (not `null`) so the widget
+- On failure, `fetchFiles` returns a typed `ApiError` so the widget
   can render a specific message. Mapping: `401` → `auth_required`, `403` with
   `X-RateLimit-Remaining: 0` → `rate_limit`, other `403` / `404` → `not_accessible`,
   `429` → `rate_limit`, network exception → `network`, anything else → `unknown`.
+
+### Page detection — `src/page.ts`
+
+`parseGitHubPage(pathname)` / `parseGitHubUrl(url)` return `{ kind, owner, repo, ref, path }`
+for the two supported page types and `null` for everything else. Pure string parsing, so it
+is unit tested without a DOM.
+
+- `kind: "pr" | "commit"` decides which API endpoint `fetchFiles` calls
+- `path` is the canonical page path (`/owner/repo/pull/12`), used as the API cache key — all
+  of a PR's tabs (`/files`, `/commits`, `/checks`) collapse to the same key
+- `parseGitHubUrl` additionally checks the host, and is what the **popup** uses, since it
+  only has the tab URL. It used to carry its own PR-only regex and so told the user to
+  "navigate to a GitHub PR" while sitting on a supported commit page.
+
+`fetchFiles(page, token)` takes the parsed page rather than reading `window.location`, which
+keeps the API client callable outside a GitHub tab.
 
 ### Widget — hover popup on diffstat
 
@@ -310,7 +328,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 npm install
 npm run build          # outputs to dist/
-npm run test           # vitest unit tests (43 tests)
+npm run test           # vitest unit tests (59 tests)
 ```
 
 To load in Chrome:

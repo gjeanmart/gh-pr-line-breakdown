@@ -1,7 +1,8 @@
 import { loadConfig } from "./config.js";
 import { buildBreakdown, classifyFile } from "./matcher.js";
 import { renderHeaderIcon, renderLoadingState, renderError, getHiddenCategories, resetCategoryFilter } from "./widget.js";
-import { fetchPrFilesFromApi, fetchCommitFilesFromApi } from "./github_api.js";
+import { fetchFiles } from "./github_api.js";
+import { parseGitHubPage } from "./page.js";
 import { injectBadges, clearBadges, setFilesVisible } from "./badges.js";
 import { injectTreeCounts, clearTreeCounts } from "./file_tree.js";
 import type { Config, Category } from "./config.js";
@@ -10,8 +11,8 @@ import type { FileEntry } from "./matcher.js";
 let currentConfig: Config | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-// API result cache — keyed by PR or commit URL path, reset on navigation
-let cachedPrPath: string | null = null;
+// API result cache — keyed by PR or commit page path, reset on navigation
+let cachedPath: string | null = null;
 let cachedFiles: FileEntry[] | null = null;
 let cachedError: boolean = false;
 let lastHref = location.href;
@@ -25,21 +26,19 @@ async function init(): Promise<void> {
 async function runBreakdown(): Promise<void> {
   if (!currentConfig) return;
 
-  const currentPath = getCurrentPath();
-  if (!currentPath) return;
+  const page = parseGitHubPage(window.location.pathname);
+  if (!page) return;
 
-  if (currentPath !== cachedPrPath) {
-    // New PR or commit — show loading state immediately, then fetch
-    cachedPrPath = currentPath;
+  if (page.path !== cachedPath) {
+    // New PR or commit — render the loading state, then fetch
+    cachedPath = page.path;
     cachedFiles = null;
     cachedError = false;
     resetCategoryFilter();
     clearBadges();
     clearTreeCounts();
     renderLoadingState();
-    const fetchFn = getCommitPath() ? fetchCommitFilesFromApi : fetchPrFilesFromApi;
-    const result = await fetchFn(currentConfig.githubToken);
-    if (!result) return;
+    const result = await fetchFiles(page, currentConfig.githubToken);
     if ("error" in result) {
       cachedError = true;
       renderError(result.error);
@@ -79,29 +78,15 @@ function buildFilesByCategory(files: FileEntry[], categories: Category[]): Map<s
   return map;
 }
 
-function getPrPath(): string | null {
-  const match = window.location.pathname.match(/^\/[^/]+\/[^/]+\/pull\/\d+/);
-  return match ? match[0] : null;
-}
-
-function getCommitPath(): string | null {
-  const match = window.location.pathname.match(/^\/[^/]+\/[^/]+\/commit\/[0-9a-f]+/i);
-  return match ? match[0] : null;
-}
-
-function getCurrentPath(): string | null {
-  return getPrPath() ?? getCommitPath();
-}
-
 function observeChanges(): void {
   // Observe document.body so tab switches (any PR tab) always trigger re-renders.
   const observer = new MutationObserver(() => {
     // Detect SPA navigation to a different PR or commit
     if (location.href !== lastHref) {
       lastHref = location.href;
-      const newPath = getCurrentPath();
-      if (newPath !== cachedPrPath) {
-        cachedPrPath = null;
+      const newPath = parseGitHubPage(window.location.pathname)?.path ?? null;
+      if (newPath !== cachedPath) {
+        cachedPath = null;
         cachedFiles = null;
         cachedError = false;
       }
@@ -119,7 +104,7 @@ function observeChanges(): void {
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== "getBreakdown") return;
-  if (!currentConfig || cachedPrPath === null) {
+  if (!currentConfig || cachedPath === null) {
     sendResponse({ status: "loading" });
     return;
   }

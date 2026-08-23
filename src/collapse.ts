@@ -19,6 +19,15 @@ const EXPAND_LABEL = "Expand file";
 
 type CollapseToggle = { button: HTMLElement; collapsed: boolean };
 
+// How far to climb looking for the control. The element badges.ts hands us is not reliably
+// the whole header row: findHeaderContainer stops at the first ancestor whose class matches
+// DiffFileHeader-module__*, which is usually the inner file-path section — and the chevron
+// lives in a *sibling* div of that section. So the search starts where it was told and climbs
+// until it finds exactly one control: zero means keep climbing, more than one means we have
+// climbed into a container holding several files and should give up rather than collapse the
+// wrong one.
+const MAX_CLIMB = 4;
+
 function accessibleName(el: Element): string {
   const label = el.getAttribute("aria-label");
   if (label) return label.trim();
@@ -27,15 +36,25 @@ function accessibleName(el: Element): string {
   return document.getElementById(id)?.textContent?.trim() ?? "";
 }
 
+function isToggle(button: Element): boolean {
+  if (button.querySelector("svg.octicon-chevron-down, svg.octicon-chevron-right")) return true;
+  const name = accessibleName(button);
+  return name === COLLAPSE_LABEL || name === EXPAND_LABEL;
+}
+
+function describeToggle(button: HTMLElement): CollapseToggle {
+  if (button.querySelector("svg.octicon-chevron-right")) return { button, collapsed: true };
+  if (button.querySelector("svg.octicon-chevron-down")) return { button, collapsed: false };
+  return { button, collapsed: accessibleName(button) === EXPAND_LABEL };
+}
+
 function findCollapseToggle(header: HTMLElement): CollapseToggle | null {
-  for (const button of Array.from(header.querySelectorAll<HTMLElement>("button"))) {
-    const icon = button.querySelector("svg.octicon-chevron-down, svg.octicon-chevron-right");
-    if (icon) {
-      return { button, collapsed: icon.classList.contains("octicon-chevron-right") };
-    }
-    const name = accessibleName(button);
-    if (name === COLLAPSE_LABEL) return { button, collapsed: false };
-    if (name === EXPAND_LABEL) return { button, collapsed: true };
+  let scope: Element | null = header;
+  for (let i = 0; i <= MAX_CLIMB && scope; i++) {
+    const found = Array.from(scope.querySelectorAll<HTMLElement>("button")).filter(isToggle);
+    if (found.length === 1) return describeToggle(found[0]);
+    if (found.length > 1) return null;
+    scope = scope.parentElement;
   }
   return null;
 }

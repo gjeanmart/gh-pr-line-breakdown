@@ -84,8 +84,14 @@ export async function injectBadges(files: FileEntry[], categories: Category[]): 
   // === New GitHub Primer UI — Strategy 3 ===
   // For files without an expand button and no full blob URL (e.g. new files with all additions),
   // the file header contains a "#diff-{sha256(path)}" anchor.
-  const pathByHash = await pathsByDiffHash(files);
-  for (const anchor of Array.from(document.querySelectorAll<HTMLElement>('a[href^="#diff-"]'))) {
+  const diffAnchors = Array.from(document.querySelectorAll<HTMLElement>('a[href^="#diff-"]'));
+  // Hashing is only worth it if a file is still unaccounted for: strategies 1 and 2 resolve
+  // most headers, and this pass runs after every settled batch of mutations.
+  const pathByHash =
+    diffAnchors.length > 0 && injectedPaths.size < files.length
+      ? await pathsByDiffHash(files)
+      : new Map<string, string>();
+  for (const anchor of diffAnchors) {
     const href = anchor.getAttribute("href") ?? "";
     const path = pathByHash.get(href.slice(6)); // remove "#diff-"
     const category = path ? fileMap.get(path) : undefined;

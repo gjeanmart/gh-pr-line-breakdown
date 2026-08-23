@@ -1,8 +1,12 @@
 <!--
   Captured from https://github.com/gjeanmart/gh-pr-line-breakdown/commit/322e229 (2026-08).
-  The commit header block is verbatim; the per-file section is abridged — its real
-  DiffFileHeader opening tag, file-name heading and diffstat chip, with the collapse
-  button, "Viewed" controls and inline SVGs stripped out.
+
+  The commit header block and both per-file headers are real markup, complete down to the
+  chevron IconButton, the aria-labelledby tooltips and the CSS-module class names. Only the
+  SVG path data is stripped (<path /> placeholders) to keep the file readable.
+
+  Do not "tidy" the nesting: the collapse control sits in a sibling div of the file-path
+  section, which is the whole reason the filter climbs out of the element it was handed.
 -->
 <div class="CommitHeader-module__commitFilesChangedContainer__GVBi7">
 <div>
@@ -27,11 +31,37 @@
 </div>
 
 <div class="DiffFileHeader-module__diff-file-header__UuNN4">
+<div class="d-flex flex-shrink-0">
+<button data-component="IconButton" type="button" class="prc-Button-ButtonBase-9n-Xk prc-Button-IconButton-fyge7" data-loading="false" data-no-visuals="true" data-size="small" data-variant="invisible" aria-labelledby="_R_5ndak5_">
+<svg data-component="Octicon" aria-hidden="true" focusable="false" class="octicon octicon-chevron-down" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible">
+<path />
+</svg>
+</button>
+<span class="prc-TooltipV2-Tooltip-tLeuB" data-direction="s" data-component="Tooltip" aria-hidden="true" id="_R_5ndak5_">Collapse file</span>
+</div>
+<div class="d-flex px-1 flex-items-center overflow-hidden DiffFileHeader-module__file-path-section__ZcmB1">
 <h3 id="heading-_R_7dak5_" class="DiffFileHeader-module__file-name__VVXpg DiffFileHeader-module__file-name-truncate__NBVtv">
 <a class="Link--primary prc-Link-Link-9ZwDx" data-component="Link" href="#diff-6ebdb617a8104a7756d0cf36578ab01103dc9f07e4dc6feb751296b9c402faf7">
 <code>‎<!-- -->CLAUDE.md<!-- -->‎</code>
 </a>
 </h3>
+<button data-component="IconButton" type="button" class="prc-Button-ButtonBase-9n-Xk ml-2 flex-shrink-0 DiffFileHeader-module__hide-on-mobile__Re_VJ prc-Button-IconButton-fyge7" data-loading="false" data-no-visuals="true" data-size="small" data-variant="invisible" aria-labelledby="_R_2dndak5_">
+<svg data-component="Octicon" aria-hidden="true" focusable="false" class="octicon octicon-copy" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible">
+<path />
+<path />
+</svg>
+</button>
+<span class="CopyToClipboardButton-module__tooltip__BhMvU prc-TooltipV2-Tooltip-tLeuB" data-direction="s" data-component="Tooltip" aria-label="Copy file name to clipboard" aria-hidden="true" id="_R_2dndak5_">Copy file name to clipboard</span>
+<button data-component="IconButton" type="button" aria-label="Expand all lines: CLAUDE.md" data-file-path="CLAUDE.md" class="prc-Button-ButtonBase-9n-Xk flex-shrink-0 js-expand-all-difflines-button DiffFileHeader-module__hide-on-mobile__Re_VJ prc-Button-IconButton-fyge7" data-loading="false" data-no-visuals="true" data-size="small" data-variant="invisible" aria-describedby="_R_4dndak5_">
+<svg data-component="Octicon" aria-hidden="true" focusable="false" class="octicon octicon-unfold" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible">
+<path />
+</svg>
+</button>
+<span class="prc-TooltipV2-Tooltip-tLeuB" data-direction="s" data-component="Tooltip" role="tooltip" aria-hidden="true" id="_R_4dndak5_">Expand all lines: CLAUDE.md</span>
+</div>
+<div class="d-flex flex-row flex-justify-end flex-items-center gap-2 flex-1">
+<div class="d-flex flex-justify-end flex-items-center">
+<div class="DiffFileHeader-module__hide-on-mobile__Re_VJ">
 <div class="d-flex flex-items-center gap-1">
 <span aria-hidden="true" class="f6 fgColor-success text-bold">+<!-- -->1</span>
 <span class="sr-only">Lines changed: 1 addition &amp; 0 deletions</span>
@@ -47,5 +77,115 @@
 <div data-testid="neutral diffstat" class="DiffSquares-module__diffSquare__r6Bwa DiffSquares-module__neutral__lvBhx">
 </div>
 </div>
+</div>
+</div>
+</div>
+<ul aria-label="File view" class="prc-SegmentedControl-SegmentedControl-lqIXp DiffFileHeader-module__hide-on-small__XO_uy" data-variant="default" data-size="small" data-component="SegmentedControl">
+<li class="prc-SegmentedControl-Item-tSCQh" data-selected="true" data-component="SegmentedControl.IconButton">
+<button type="button" aria-pressed="true" class="prc-SegmentedControl-Button-E48xz prc-SegmentedControl-IconButton-tlzDE" style="--separator-color:transparent" aria-labelledby="_R_bhndak5_">
+<span class="prc-SegmentedControl-Content-1COlk segmentedControl-content">
+<svg data-component="Octicon" aria-hidden="true" focusable="false" class="octicon octicon-code" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible">
+<path />
+</svg>
+</span>
+</button>
+<span class="prc-TooltipV2-Tooltip-tLeuB" data-direction="s" data-component="Tooltip" aria-hidden="true" id="_R_bhndak5_">Display the source diff</span>
+</li>
+<li class="prc-SegmentedControl-Item-tSCQh" data-component="SegmentedControl.IconButton">
+<button type="button" aria-pressed="false" class="prc-SegmentedControl-Button-E48xz prc-SegmentedControl-IconButton-tlzDE" style="--separator-color:var(--borderColor-default)" aria-labelledby="_R_jhndak5_">
+<span class="prc-SegmentedControl-Content-1COlk segmentedControl-content">
+<svg data-component="Octicon" aria-hidden="true" focusable="false" class="octicon octicon-file" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible">
+<path />
+</svg>
+</span>
+</button>
+<span class="prc-TooltipV2-Tooltip-tLeuB" data-direction="s" data-component="Tooltip" aria-hidden="true" id="_R_jhndak5_">Display the rich diff</span>
+</li>
+</ul>
+<button class="Button Button--iconOnly Button--invisible" aria-label="More options" id="_R_4hndak5_" aria-haspopup="true" aria-expanded="false" tabindex="0">
+<svg data-component="Octicon" aria-hidden="true" focusable="false" class="octicon octicon-kebab-horizontal" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible">
+<path />
+</svg>
+</button>
+</div>
+</div>
+
+<div class="DiffFileHeader-module__diff-file-header__UuNN4">
+<div class="d-flex flex-shrink-0">
+<button data-component="IconButton" type="button" class="prc-Button-ButtonBase-9n-Xk prc-Button-IconButton-fyge7" data-loading="false" data-no-visuals="true" data-size="small" data-variant="invisible" aria-labelledby="_R_5rdak5_">
+<svg data-component="Octicon" aria-hidden="true" focusable="false" class="octicon octicon-chevron-down" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible">
+<path />
+</svg>
+</button>
+<span class="prc-TooltipV2-Tooltip-tLeuB" data-direction="s" data-component="Tooltip" aria-hidden="true" id="_R_5rdak5_">Collapse file</span>
+</div>
+<div class="d-flex px-1 flex-items-center overflow-hidden DiffFileHeader-module__file-path-section__ZcmB1">
+<h3 id="heading-_R_bdak5_" class="DiffFileHeader-module__file-name__VVXpg DiffFileHeader-module__file-name-truncate__NBVtv">
+<a class="Link--primary prc-Link-Link-9ZwDx" data-component="Link" href="#diff-b335630551682c19a781afebcf4d07bf978fb1f8ac04c6bf87428ed5106870f5">
+<code>‎<!-- -->README.md<!-- -->‎</code>
+</a>
+</h3>
+<button data-component="IconButton" type="button" class="prc-Button-ButtonBase-9n-Xk ml-2 flex-shrink-0 DiffFileHeader-module__hide-on-mobile__Re_VJ prc-Button-IconButton-fyge7" data-loading="false" data-no-visuals="true" data-size="small" data-variant="invisible" aria-labelledby="_R_2drdak5_">
+<svg data-component="Octicon" aria-hidden="true" focusable="false" class="octicon octicon-copy" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible">
+<path />
+<path />
+</svg>
+</button>
+<span class="CopyToClipboardButton-module__tooltip__BhMvU prc-TooltipV2-Tooltip-tLeuB" data-direction="s" data-component="Tooltip" aria-label="Copy file name to clipboard" aria-hidden="true" id="_R_2drdak5_">Copy file name to clipboard</span>
+<button data-component="IconButton" type="button" aria-label="Expand all lines: README.md" data-file-path="README.md" class="prc-Button-ButtonBase-9n-Xk flex-shrink-0 js-expand-all-difflines-button DiffFileHeader-module__hide-on-mobile__Re_VJ prc-Button-IconButton-fyge7" data-loading="false" data-no-visuals="true" data-size="small" data-variant="invisible" aria-describedby="_R_4drdak5_">
+<svg data-component="Octicon" aria-hidden="true" focusable="false" class="octicon octicon-unfold" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible">
+<path />
+</svg>
+</button>
+<span class="prc-TooltipV2-Tooltip-tLeuB" data-direction="s" data-component="Tooltip" role="tooltip" aria-hidden="true" id="_R_4drdak5_">Expand all lines: README.md</span>
+</div>
+<div class="d-flex flex-row flex-justify-end flex-items-center gap-2 flex-1">
+<div class="d-flex flex-justify-end flex-items-center">
+<div class="DiffFileHeader-module__hide-on-mobile__Re_VJ">
+<div class="d-flex flex-items-center gap-1">
+<span aria-hidden="true" class="f6 fgColor-success text-bold">+<!-- -->1</span>
+<span class="sr-only">Lines changed: 1 addition &amp; 0 deletions</span>
+<div class="d-flex">
+<div data-testid="addition diffstat" class="DiffSquares-module__diffSquare__r6Bwa DiffSquares-module__addition__wxDmF">
+</div>
+<div data-testid="neutral diffstat" class="DiffSquares-module__diffSquare__r6Bwa DiffSquares-module__neutral__lvBhx">
+</div>
+<div data-testid="neutral diffstat" class="DiffSquares-module__diffSquare__r6Bwa DiffSquares-module__neutral__lvBhx">
+</div>
+<div data-testid="neutral diffstat" class="DiffSquares-module__diffSquare__r6Bwa DiffSquares-module__neutral__lvBhx">
+</div>
+<div data-testid="neutral diffstat" class="DiffSquares-module__diffSquare__r6Bwa DiffSquares-module__neutral__lvBhx">
+</div>
+</div>
+</div>
+</div>
+</div>
+<ul aria-label="File view" class="prc-SegmentedControl-SegmentedControl-lqIXp DiffFileHeader-module__hide-on-small__XO_uy" data-variant="default" data-size="small" data-component="SegmentedControl">
+<li class="prc-SegmentedControl-Item-tSCQh" data-selected="true" data-component="SegmentedControl.IconButton">
+<button type="button" aria-pressed="true" class="prc-SegmentedControl-Button-E48xz prc-SegmentedControl-IconButton-tlzDE" style="--separator-color:transparent" aria-labelledby="_R_bhrdak5_">
+<span class="prc-SegmentedControl-Content-1COlk segmentedControl-content">
+<svg data-component="Octicon" aria-hidden="true" focusable="false" class="octicon octicon-code" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible">
+<path />
+</svg>
+</span>
+</button>
+<span class="prc-TooltipV2-Tooltip-tLeuB" data-direction="s" data-component="Tooltip" aria-hidden="true" id="_R_bhrdak5_">Display the source diff</span>
+</li>
+<li class="prc-SegmentedControl-Item-tSCQh" data-component="SegmentedControl.IconButton">
+<button type="button" aria-pressed="false" class="prc-SegmentedControl-Button-E48xz prc-SegmentedControl-IconButton-tlzDE" style="--separator-color:var(--borderColor-default)" aria-labelledby="_R_jhrdak5_">
+<span class="prc-SegmentedControl-Content-1COlk segmentedControl-content">
+<svg data-component="Octicon" aria-hidden="true" focusable="false" class="octicon octicon-file" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible">
+<path />
+</svg>
+</span>
+</button>
+<span class="prc-TooltipV2-Tooltip-tLeuB" data-direction="s" data-component="Tooltip" aria-hidden="true" id="_R_jhrdak5_">Display the rich diff</span>
+</li>
+</ul>
+<button class="Button Button--iconOnly Button--invisible" aria-label="More options" id="_R_4hrdak5_" aria-haspopup="true" aria-expanded="false" tabindex="0">
+<svg data-component="Octicon" aria-hidden="true" focusable="false" class="octicon octicon-kebab-horizontal" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible">
+<path />
+</svg>
+</button>
 </div>
 </div>

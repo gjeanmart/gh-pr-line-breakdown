@@ -50,6 +50,17 @@ const hiddenCategories: Set<string> = new Set();
 // only opens on hover, so without this an API failure is completely silent.
 const MARKER_CLASS = "gh-breakdown-alert";
 
+// A pushpin: head and needle. Two primitives, so it cannot render as garbage the way
+// hand-copied path data can, and the filled head reads as "on" at 13px.
+const PIN_OUTLINE =
+  `<svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">` +
+  `<circle cx="8" cy="5.6" r="3.4" fill="none" stroke="currentColor" stroke-width="1.6"/>` +
+  `<line x1="8" y1="9.4" x2="8" y2="14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+const PIN_FILLED =
+  `<svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">` +
+  `<circle cx="8" cy="5.6" r="3.4" fill="currentColor"/>` +
+  `<line x1="8" y1="9.4" x2="8" y2="14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
+
 const TITLE_ICON =
   `<svg class="title-icon" width="14" height="14" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">` +
   `<rect x="16" y="20" width="88" height="16" rx="4" fill="#0969da"/>` +
@@ -108,15 +119,13 @@ function buildRows(
     summary.emptyCount > 0
       ? `<button class="toggle-empty">${hideEmpty ? `Show ${summary.emptyCount} empty` : "Hide empty"}</button>`
       : "";
-  const pinButton = `<button class="pin-toggle"></button>`;
   const copyButton = `<button class="copy-md" title="Copy this breakdown as a markdown table">Copy markdown</button>`;
   const quota = buildQuotaHint();
-  const footer =
-    pinButton + copyButton + emptyToggle + (quota ? `<span class="footer-gap"></span>${quota}` : "");
+  const footer = copyButton + emptyToggle + (quota ? `<span class="footer-gap"></span>${quota}` : "");
 
   return `
     <div class="header">
-      <span class="title">${TITLE_ICON}Line Breakdown</span>
+      <span class="title">${TITLE_ICON}Line Breakdown<button class="pin-toggle" aria-pressed="false"></button></span>
       <span class="totals">
         <span class="total-lines">${summary.totalLines.toLocaleString()} lines</span>
         <span class="total-files"${truncated ? ` title="${escapeAttr(TRUNCATION_NOTE)}"` : ""}>${truncated ? "first " : ""}${summary.filesLabel}</span>
@@ -341,8 +350,11 @@ function applyPinnedState(): void {
 
   const button = shadowRoot?.querySelector<HTMLElement>(".pin-toggle");
   if (button) {
-    button.textContent = pinned ? "Unpin" : "Pin";
-    button.title = pinned ? "Let the popup close again (Esc)" : "Keep the popup open while you read it";
+    const label = pinned ? "Unpin — let the popup close again (Esc)" : "Pin — keep the popup open while you read it";
+    button.innerHTML = pinned ? PIN_FILLED : PIN_OUTLINE;
+    button.title = label;
+    button.setAttribute("aria-label", label);
+    button.setAttribute("aria-pressed", String(pinned));
   }
 
   if (currentAnchor instanceof HTMLElement) {
@@ -614,16 +626,29 @@ const STYLES = `
   .footer-gap { flex: 1; }
 
   .pin-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 18px;
+    margin-left: 2px;
+    padding: 0;
     background: none;
     border: none;
-    padding: 0;
-    font-family: inherit;
-    font-size: 11px;
-    color: var(--fgColor-accent, var(--color-accent-fg, #0969da));
+    border-radius: 3px;
     cursor: pointer;
+    color: var(--fgColor-muted, var(--color-fg-muted, #8c959f));
+    opacity: .55;
+    vertical-align: middle;
   }
-  .pin-toggle:hover { text-decoration: underline; }
-  .popup.pinned .pin-toggle { font-weight: 600; }
+  .pin-toggle:hover {
+    opacity: 1;
+    background: var(--bgColor-muted, var(--color-canvas-subtle, #f6f8fa));
+  }
+  .popup.pinned .pin-toggle {
+    opacity: 1;
+    color: var(--fgColor-accent, var(--color-accent-fg, #0969da));
+  }
 
   .copy-md {
     background: none;

@@ -374,12 +374,16 @@ describe("copy as markdown", () => {
 describe("the pin control", () => {
   const pinButton = () => host().shadowRoot!.querySelector<HTMLElement>(".pin-toggle")!;
 
-  it("is visible in the footer, so pinning is findable without a tooltip", async () => {
+  it("sits in the header, so pinning is findable without a tooltip", async () => {
     const widget = await freshWidget();
 
     renderRows(widget);
 
-    expect(pinButton().textContent).toBe("Pin");
+    const button = pinButton();
+    expect(button.closest(".title")).not.toBeNull();
+    expect(button.getAttribute("aria-pressed")).toBe("false");
+    expect(button.getAttribute("aria-label")).toContain("Pin");
+    expect(button.querySelector("svg")).not.toBeNull();
   });
 
   it("pins from the footer button", async () => {
@@ -391,7 +395,7 @@ describe("the pin control", () => {
     vi.advanceTimersByTime(500);
 
     expect(host().style.display).toBe("block");
-    expect(pinButton().textContent).toBe("Unpin");
+    expect(pinButton().getAttribute("aria-pressed")).toBe("true");
   });
 
   it("releases from the footer button", async () => {
@@ -402,16 +406,17 @@ describe("the pin control", () => {
     pinButton().click();
 
     expect(host().style.display).toBe("none");
-    expect(pinButton().textContent).toBe("Pin");
+    expect(pinButton().getAttribute("aria-pressed")).toBe("false");
   });
 
-  it("keeps its label in step with a pin from the diffstat", async () => {
+  it("keeps its state in step with a pin from the diffstat", async () => {
     const widget = await freshWidget();
     renderRows(widget);
 
     findDiffstatAnchor()!.dispatchEvent(new MouseEvent("click"));
 
-    expect(pinButton().textContent).toBe("Unpin");
+    expect(pinButton().getAttribute("aria-pressed")).toBe("true");
+    expect(pinButton().getAttribute("aria-label")).toContain("Unpin");
   });
 
   it("still reads correctly after a re-render", async () => {
@@ -421,6 +426,6 @@ describe("the pin control", () => {
 
     renderRows(widget);
 
-    expect(pinButton().textContent).toBe("Unpin");
+    expect(pinButton().getAttribute("aria-pressed")).toBe("true");
   });
 });

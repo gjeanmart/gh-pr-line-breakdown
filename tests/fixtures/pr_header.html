@@ -1,0 +1,66 @@
+<!--
+  Abridged capture of the GitHub PR header (github.com/facebook/react/pull/28000, 2026-08).
+  Class names and nesting are verbatim; the tab list keeps one of its four links and the
+  inline SVGs are stripped.
+
+  Two deliberate deviations, both noted because tests depend on them:
+
+  1. The server HTML ships a LoadingSkeleton where the diffstat goes — the chip is rendered
+     client-side. The chip markup below is the output of GitHub's DiffStats component, taken
+     from the component source in GitHub's JS bundle.
+  2. The first rightContentWrapper stands in for the duplicate header slot GitHub hides at
+     narrow widths with `@container (width<=768px){ ... display:none!important }`. Container
+     queries do not resolve under jsdom, so it carries an inline display:none, and it shows
+     different numbers (+99 -9) from the visible slot (+18 -1) so a test can tell which one
+     detection picked.
+-->
+<div class="prc-PageHeader-Navigation--uLav tmp-pt-3" data-component="PH_Navigation">
+  <div
+    class="PullRequestHeader-module__rightContentWrapper__MrqTF PullRequestHeader-module__hideWhenVeryNarrowContainer__A3HHT"
+    style="display: none"
+  >
+    <div class="d-flex flex-items-center gap-1">
+      <span aria-hidden="true" class="f6 fgColor-success text-bold">+99</span>
+      <span aria-hidden="true" class="f6 fgColor-danger text-bold">-9</span>
+      <span class="sr-only">Lines changed: 99 additions &amp; 9 deletions</span>
+      <div class="d-flex">
+        <div data-testid="addition diffstat" class="DiffSquares-module__diffSquare__r6Bwa DiffSquares-module__addition__wxDmF"></div>
+        <div data-testid="addition diffstat" class="DiffSquares-module__diffSquare__r6Bwa DiffSquares-module__addition__wxDmF"></div>
+        <div data-testid="addition diffstat" class="DiffSquares-module__diffSquare__r6Bwa DiffSquares-module__addition__wxDmF"></div>
+        <div data-testid="addition diffstat" class="DiffSquares-module__diffSquare__r6Bwa DiffSquares-module__addition__wxDmF"></div>
+        <div data-testid="deletion diffstat" class="DiffSquares-module__diffSquare__r6Bwa DiffSquares-module__deletion__Hmhav"></div>
+      </div>
+    </div>
+  </div>
+  <div class="PullRequestHeader-module__rightContentWrapper__MrqTF">
+    <div class="d-flex flex-items-center gap-1">
+      <span aria-hidden="true" class="f6 fgColor-success text-bold">+18</span>
+      <span aria-hidden="true" class="f6 fgColor-danger text-bold">-1</span>
+      <span class="sr-only">Lines changed: 18 additions &amp; 1 deletion</span>
+      <div class="d-flex">
+        <div data-testid="addition diffstat" class="DiffSquares-module__diffSquare__r6Bwa DiffSquares-module__addition__wxDmF"></div>
+        <div data-testid="addition diffstat" class="DiffSquares-module__diffSquare__r6Bwa DiffSquares-module__addition__wxDmF"></div>
+        <div data-testid="addition diffstat" class="DiffSquares-module__diffSquare__r6Bwa DiffSquares-module__addition__wxDmF"></div>
+        <div data-testid="addition diffstat" class="DiffSquares-module__diffSquare__r6Bwa DiffSquares-module__addition__wxDmF"></div>
+        <div data-testid="neutral diffstat" class="DiffSquares-module__diffSquare__r6Bwa DiffSquares-module__neutral__lvBhx"></div>
+      </div>
+    </div>
+  </div>
+  <div class="flex-auto">
+    <nav
+      class="PullRequestHeaderTabNav-module__TabNav__tXCxR"
+      aria-label="Pull request navigation tabs"
+      data-turbo="false"
+    >
+      <div class="PullRequestHeaderTabNav-module__TabNavList__d_nKN">
+        <a
+          aria-current="page"
+          class="PullRequestHeaderTabNav-module__TabNavLink__JCc1O PullRequestHeaderTabNav-module__selected__g5kH0 position-relative flex-shrink-0 text-normal"
+          href="/react/react/pull/28000"
+          data-discover="true"
+          >Conversation</a
+        >
+      </div>
+    </nav>
+  </div>
+</div>

@@ -1,8 +1,7 @@
 import { buildBreakdown } from "../matcher.js";
 import type { Category } from "../config.js";
 import type { FileEntry } from "../matcher.js";
-
-const PR_PATTERN = /^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+/;
+import { parseGitHubUrl } from "../page.js";
 
 const content = document.getElementById("content")!;
 let hideEmpty = true;
@@ -79,8 +78,9 @@ async function init(): Promise<void> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const url = tab?.url ?? "";
 
-  if (!PR_PATTERN.test(url)) {
-    showMessage("Navigate to a GitHub PR to see the line breakdown.");
+  const page = parseGitHubUrl(url);
+  if (!page) {
+    showMessage("Open a GitHub pull request or commit to see the line breakdown.");
     return;
   }
 
@@ -95,11 +95,11 @@ async function init(): Promise<void> {
   }
 
   if (response.status === "loading") {
-    showMessage("Loading PR data\u2026", true);
+    showMessage("Loading changed files\u2026", true);
     return;
   }
   if (response.status === "error") {
-    showMessage("Failed to load PR data.");
+    showMessage("Failed to load the changed files.");
     return;
   }
 

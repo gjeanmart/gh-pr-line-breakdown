@@ -3,6 +3,8 @@ import type { CategoryStats } from "./matcher.js";
 import type { ApiError } from "./github_api.js";
 import { findDiffstatAnchor } from "./anchor.js";
 import { safeCssColor } from "./color.js";
+import { escapeAttr, escapeHtml } from "./html.js";
+import { summarize } from "./summary.js";
 
 const HOST_ID = "gh-line-breakdown-host";
 
@@ -16,6 +18,13 @@ const hiddenCategories: Set<string> = new Set();
 // A dot placed on GitHub's diffstat chip when the breakdown could not be loaded. The popup
 // only opens on hover, so without this an API failure is completely silent.
 const MARKER_CLASS = "gh-breakdown-alert";
+
+const TITLE_ICON =
+  `<svg class="title-icon" width="14" height="14" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">` +
+  `<rect x="16" y="20" width="88" height="16" rx="4" fill="#0969da"/>` +
+  `<rect x="16" y="44" width="72" height="16" rx="4" fill="#1f6feb"/>` +
+  `<rect x="16" y="68" width="52" height="16" rx="4" fill="#388bfd"/>` +
+  `<rect x="16" y="92" width="32" height="16" rx="4" fill="#79c0ff"/></svg>`;
 
 // Shown when the PR has more files than the API will return, so a partial total is never
 // presented as if it were the whole PR.
@@ -32,63 +41,50 @@ function buildRows(
   categories: Category[],
   truncated: boolean
 ): string {
-  const grandTotal = categories.reduce((sum, cat) => sum + (breakdown.get(cat)?.total ?? 0), 0);
-  const totalAdded = categories.reduce((sum, cat) => sum + (breakdown.get(cat)?.added ?? 0), 0);
-  const totalRemoved = categories.reduce((sum, cat) => sum + (breakdown.get(cat)?.removed ?? 0), 0);
-  const totalFiles = categories.reduce((sum, cat) => sum + (breakdown.get(cat)?.files ?? 0), 0);
-  const scale = Math.max(totalAdded, totalRemoved, 1);
+  const summary = summarize(breakdown, categories);
 
-  const rows = categories
-    .map((cat) => {
-      const stats = breakdown.get(cat) ?? { added: 0, removed: 0, total: 0, files: 0 };
-      const addedPct = (stats.added / scale) * 100;
-      const removedPct = (stats.removed / scale) * 100;
-      const pct = grandTotal > 0 ? Math.round((stats.total / grandTotal) * 100) : 0;
-      const fileLabel = stats.files === 1 ? "1 file" : `${stats.files.toLocaleString()} files`;
-      const emptyClass = stats.total === 0 ? " row--empty" : "";
-      const isHidden = hiddenCategories.has(cat.name);
+  const rows = summary.rows
+    .map(({ category, stats, percent, fileLabel, isEmpty, addedWidth, removedWidth }) => {
+      const isHidden = hiddenCategories.has(category.name);
       const eyeIcon = isHidden ? EYE_SLASH : EYE_OPEN;
       const eyeTitle = isHidden ? "Show files" : "Hide files";
       const eyeClass = isHidden ? "cat-toggle cat-toggle--hidden" : "cat-toggle";
       return `
-      <div class="row${emptyClass}">
-        <span class="cat-name"><span class="cat-dot" style="background:${safeCssColor(cat.color)}"></span>${escapeHtml(cat.name)}</span>
+      <div class="row${isEmpty ? " row--empty" : ""}">
+        <span class="cat-name"><span class="cat-dot" style="background:${safeCssColor(category.color)}"></span>${escapeHtml(category.name)}</span>
         <span class="cat-files">${fileLabel}</span>
         <div class="bar-track">
           <div class="bar-half bar-left">
-            <div class="bar-fill bar-removed" style="width:${removedPct.toFixed(1)}%"></div>
+            <div class="bar-fill bar-removed" style="width:${removedWidth.toFixed(1)}%"></div>
           </div>
           <div class="bar-half bar-right">
-            <div class="bar-fill bar-added" style="width:${addedPct.toFixed(1)}%"></div>
+            <div class="bar-fill bar-added" style="width:${addedWidth.toFixed(1)}%"></div>
           </div>
         </div>
         <span class="stats"><span class="stat stat-added">+${stats.added.toLocaleString()}</span><span class="stat stat-removed">\u2212${stats.removed.toLocaleString()}</span></span>
-        <span class="pct">${pct}%</span>
-        <button class="${eyeClass}" data-cat="${escapeHtml(cat.name)}" title="${eyeTitle}" aria-label="${eyeTitle}">${eyeIcon}</button>
+        <span class="pct">${percent}%</span>
+        <button class="${eyeClass}" data-cat="${escapeAttr(category.name)}" title="${eyeTitle}" aria-label="${eyeTitle}">${eyeIcon}</button>
       </div>`;
     })
     .join("");
 
-  const emptyCount = categories.filter(
-    (cat) => (breakdown.get(cat)?.total ?? 0) === 0
-  ).length;
-  const footer =
-    emptyCount > 0
-      ? `<div class="footer"><button class="toggle-empty">${hideEmpty ? `Show ${emptyCount} empty` : "Hide empty"}</button></div>`
+  const emptyToggle =
+    summary.emptyCount > 0
+      ? `<button class="toggle-empty">${hideEmpty ? `Show ${summary.emptyCount} empty` : "Hide empty"}</button>`
       : "";
 
   return `
     <div class="header">
-      <span class="title"><svg class="title-icon" width="14" height="14" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="16" y="20" width="88" height="16" rx="4" fill="#0969da"/><rect x="16" y="44" width="72" height="16" rx="4" fill="#1f6feb"/><rect x="16" y="68" width="52" height="16" rx="4" fill="#388bfd"/><rect x="16" y="92" width="32" height="16" rx="4" fill="#79c0ff"/></svg>Line Breakdown</span>
+      <span class="title">${TITLE_ICON}Line Breakdown</span>
       <span class="totals">
-        <span class="total-lines">${grandTotal.toLocaleString()} lines</span>
-        <span class="total-files"${truncated ? ` title="${escapeHtml(TRUNCATION_NOTE)}"` : ""}>${truncated ? "first " : ""}${totalFiles.toLocaleString()} ${totalFiles === 1 ? "file" : "files"}</span>
-        <span class="total-added">+${totalAdded.toLocaleString()}</span>
-        <span class="total-removed">\u2212${totalRemoved.toLocaleString()}</span>
+        <span class="total-lines">${summary.totalLines.toLocaleString()} lines</span>
+        <span class="total-files"${truncated ? ` title="${escapeAttr(TRUNCATION_NOTE)}"` : ""}>${truncated ? "first " : ""}${summary.filesLabel}</span>
+        <span class="total-added">+${summary.totalAdded.toLocaleString()}</span>
+        <span class="total-removed">\u2212${summary.totalRemoved.toLocaleString()}</span>
       </span>
     </div>
     <div class="rows${hideEmpty ? " hide-empty" : ""}">${rows}</div>
-    ${footer}
+    <div class="footer">${emptyToggle}</div>
   `;
 }
 
@@ -496,13 +492,3 @@ const STYLES = `
 
   @keyframes spin { to { transform: rotate(360deg); } }
 `;
-
-// ── Utilities ─────────────────────────────────────────────────────────────────
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}

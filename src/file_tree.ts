@@ -2,7 +2,7 @@ import type { FileEntry } from "./matcher.js";
 
 const TREE_COUNT_CLASS = "gh-breakdown-tree-count";
 
-interface LineStats {
+export interface LineStats {
   added: number;
   removed: number;
 }
@@ -56,7 +56,7 @@ export function clearTreeCounts(): void {
 
 // ─── Data helpers ─────────────────────────────────────────────────────────────
 
-function buildMaps(files: FileEntry[]): {
+export function buildMaps(files: FileEntry[]): {
   fileMap: Map<string, LineStats>;
   folderMap: Map<string, LineStats>;
 } {

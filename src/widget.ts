@@ -108,9 +108,11 @@ function buildRows(
     summary.emptyCount > 0
       ? `<button class="toggle-empty">${hideEmpty ? `Show ${summary.emptyCount} empty` : "Hide empty"}</button>`
       : "";
+  const pinButton = `<button class="pin-toggle"></button>`;
   const copyButton = `<button class="copy-md" title="Copy this breakdown as a markdown table">Copy markdown</button>`;
   const quota = buildQuotaHint();
-  const footer = emptyToggle + copyButton + (quota ? `<span class="footer-gap"></span>${quota}` : "");
+  const footer =
+    pinButton + copyButton + emptyToggle + (quota ? `<span class="footer-gap"></span>${quota}` : "");
 
   return `
     <div class="header">
@@ -223,6 +225,11 @@ function setContent(html: string): void {
     }
   });
 
+  shadow.querySelector<HTMLElement>(".pin-toggle")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setPinned(!pinned);
+  });
+
   const copyButton = shadow.querySelector<HTMLElement>(".copy-md");
   copyButton?.addEventListener("click", async (e) => {
     e.stopPropagation();
@@ -314,9 +321,30 @@ function flash(button: HTMLElement, message: string, revertTo: string): void {
   }, 1500);
 }
 
+export function setPinned(next: boolean): void {
+  pinned = next;
+  applyPinnedState();
+
+  const host = document.getElementById(HOST_ID);
+  if (!host) return;
+  if (pinned && currentAnchor) {
+    positionHost(host, currentAnchor);
+    host.style.display = "block";
+  } else if (!pinned) {
+    host.style.display = "none";
+  }
+}
+
 // Re-applied after every render, since setContent replaces the popup's contents wholesale.
 function applyPinnedState(): void {
   shadowRoot?.querySelector(".popup")?.classList.toggle("pinned", pinned);
+
+  const button = shadowRoot?.querySelector<HTMLElement>(".pin-toggle");
+  if (button) {
+    button.textContent = pinned ? "Unpin" : "Pin";
+    button.title = pinned ? "Let the popup close again (Esc)" : "Keep the popup open while you read it";
+  }
+
   if (currentAnchor instanceof HTMLElement) {
     currentAnchor.title = pinned ? "Click to unpin the line breakdown" : "Click to pin the line breakdown";
   }
@@ -345,12 +373,6 @@ function bindHoverListeners(host: HTMLElement, anchor: Element): void {
   const scheduleHide = () => {
     if (pinned) return;
     hideTimer = setTimeout(() => { host.style.display = "none"; hideTimer = null; }, 120);
-  };
-  const setPinned = (next: boolean) => {
-    pinned = next;
-    applyPinnedState();
-    if (pinned) show();
-    else host.style.display = "none";
   };
 
   anchor.addEventListener("mouseenter", show, { signal });
@@ -590,6 +612,18 @@ const STYLES = `
     border-top: 1px solid var(--borderColor-muted, var(--color-border-muted, #eaeef2));
   }
   .footer-gap { flex: 1; }
+
+  .pin-toggle {
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: inherit;
+    font-size: 11px;
+    color: var(--fgColor-accent, var(--color-accent-fg, #0969da));
+    cursor: pointer;
+  }
+  .pin-toggle:hover { text-decoration: underline; }
+  .popup.pinned .pin-toggle { font-weight: 600; }
 
   .copy-md {
     background: none;

@@ -370,3 +370,57 @@ describe("copy as markdown", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("the pin control", () => {
+  const pinButton = () => host().shadowRoot!.querySelector<HTMLElement>(".pin-toggle")!;
+
+  it("is visible in the footer, so pinning is findable without a tooltip", async () => {
+    const widget = await freshWidget();
+
+    renderRows(widget);
+
+    expect(pinButton().textContent).toBe("Pin");
+  });
+
+  it("pins from the footer button", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+
+    pinButton().click();
+    findDiffstatAnchor()!.dispatchEvent(new MouseEvent("mouseleave"));
+    vi.advanceTimersByTime(500);
+
+    expect(host().style.display).toBe("block");
+    expect(pinButton().textContent).toBe("Unpin");
+  });
+
+  it("releases from the footer button", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    pinButton().click();
+
+    pinButton().click();
+
+    expect(host().style.display).toBe("none");
+    expect(pinButton().textContent).toBe("Pin");
+  });
+
+  it("keeps its label in step with a pin from the diffstat", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+
+    findDiffstatAnchor()!.dispatchEvent(new MouseEvent("click"));
+
+    expect(pinButton().textContent).toBe("Unpin");
+  });
+
+  it("still reads correctly after a re-render", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    pinButton().click();
+
+    renderRows(widget);
+
+    expect(pinButton().textContent).toBe("Unpin");
+  });
+});

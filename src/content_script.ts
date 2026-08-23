@@ -190,6 +190,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     files: cachedFiles,
     categories: currentConfig.categories,
     truncated: cachedTruncated,
+    rate: cachedRate,
+    hasToken: Boolean(currentConfig.githubToken),
   });
 });
 

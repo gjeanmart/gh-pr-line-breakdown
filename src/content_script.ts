@@ -3,7 +3,7 @@ import { buildBreakdown, classifyFile } from "./matcher.js";
 import { renderHeaderIcon, renderLoadingState, renderError, getHiddenCategories, resetCategoryFilter } from "./widget.js";
 import { fetchFiles } from "./github_api.js";
 import { parseGitHubPage } from "./page.js";
-import { injectBadges, clearBadges, setFilesVisible } from "./badges.js";
+import { injectBadges, clearBadges, setFilesVisible, restoreFilteredFiles } from "./badges.js";
 import { injectTreeCounts, clearTreeCounts } from "./file_tree.js";
 import type { Config, Category } from "./config.js";
 import type { FileEntry } from "./matcher.js";
@@ -16,12 +16,45 @@ let observer: MutationObserver | null = null;
 let cachedPath: string | null = null;
 let cachedFiles: FileEntry[] | null = null;
 let cachedError: boolean = false;
+let cachedTruncated: boolean = false;
 let lastHref = location.href;
 
 async function init(): Promise<void> {
   currentConfig = await loadConfig();
   await runBreakdown();
   observeChanges();
+  watchConfigChanges();
+}
+
+// Saving in the options page used to change nothing until every GitHub tab was reloaded,
+// which reads as the extension being broken rather than as a stale cache.
+function watchConfigChanges(): void {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    const categoriesChanged = area === "sync" && "config" in changes;
+    const tokenChanged = area === "local" && "githubToken" in changes;
+    if (!categoriesChanged && !tokenChanged) return;
+    void applyNewConfig(tokenChanged);
+  });
+}
+
+async function applyNewConfig(refetch: boolean): Promise<void> {
+  currentConfig = await loadConfig();
+
+  // Badges carry the old names and colours, and the filter refers to categories that may no
+  // longer exist — so undo our collapses first, then start the page's annotations over.
+  restoreFilteredFiles();
+  resetCategoryFilter();
+  clearBadges();
+  clearTreeCounts();
+
+  // A new token can unlock a repo that just failed, so that one needs the data again.
+  if (refetch) {
+    cachedPath = null;
+    cachedFiles = null;
+    cachedError = false;
+  }
+
+  await runBreakdown();
 }
 
 async function runBreakdown(): Promise<void> {
@@ -35,6 +68,7 @@ async function runBreakdown(): Promise<void> {
     cachedPath = page.path;
     cachedFiles = null;
     cachedError = false;
+    cachedTruncated = false;
     resetCategoryFilter();
     clearBadges();
     clearTreeCounts();
@@ -46,6 +80,7 @@ async function runBreakdown(): Promise<void> {
       return;
     }
     cachedFiles = result.files;
+    cachedTruncated = result.truncated === true;
   }
 
   if (cachedError) return;
@@ -55,7 +90,7 @@ async function runBreakdown(): Promise<void> {
   const breakdown = buildBreakdown(cachedFiles, categories);
   const filesByCategory = buildFilesByCategory(cachedFiles, categories);
 
-  renderHeaderIcon(breakdown, categories, (catName, visible) => {
+  renderHeaderIcon(breakdown, categories, cachedTruncated, (catName, visible) => {
     setFilesVisible(filesByCategory.get(catName) ?? [], visible);
   });
 
@@ -122,7 +157,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     sendResponse({ status: "loading" });
     return;
   }
-  sendResponse({ status: "ready", files: cachedFiles, categories: currentConfig.categories });
+  sendResponse({
+    status: "ready",
+    files: cachedFiles,
+    categories: currentConfig.categories,
+    truncated: cachedTruncated,
+  });
 });
 
 init();

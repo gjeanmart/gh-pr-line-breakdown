@@ -2,6 +2,7 @@ import type { Category } from "./config.js";
 import type { CategoryStats } from "./matcher.js";
 import type { ApiError } from "./github_api.js";
 import { findDiffstatAnchor } from "./anchor.js";
+import { safeCssColor } from "./color.js";
 
 const HOST_ID = "gh-line-breakdown-host";
 
@@ -9,7 +10,17 @@ let currentAnchor: Element | null = null;
 let shadowRoot: ShadowRoot | null = null;
 let listenerController: AbortController | null = null;
 let hideEmpty = true;
+let showErrorMarker = false;
 const hiddenCategories: Set<string> = new Set();
+
+// A dot placed on GitHub's diffstat chip when the breakdown could not be loaded. The popup
+// only opens on hover, so without this an API failure is completely silent.
+const MARKER_CLASS = "gh-breakdown-alert";
+
+// Shown when the PR has more files than the API will return, so a partial total is never
+// presented as if it were the whole PR.
+const TRUNCATION_NOTE =
+  "This PR has more files than the GitHub API returns (3,000 max), so these totals are partial.";
 
 const EYE_OPEN = `<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M8 2c-1.981 0-3.671.992-4.933 2.078C1.797 5.169.88 6.423.43 7.1a1.98 1.98 0 0 0 0 1.8c.45.677 1.367 1.931 2.637 3.022C4.33 13.008 6.019 14 8 14c1.981 0 3.671-.992 4.933-2.078 1.27-1.091 2.187-2.345 2.637-3.022a1.98 1.98 0 0 0 0-1.8c-.45-.677-1.367-1.931-2.637-3.022C11.67 2.992 9.981 2 8 2ZM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0-1.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/></svg>`;
 const EYE_SLASH = `<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M8 2c-1.981 0-3.671.992-4.933 2.078C1.797 5.169.88 6.423.43 7.1a1.98 1.98 0 0 0 0 1.8c.45.677 1.367 1.931 2.637 3.022C4.33 13.008 6.019 14 8 14c1.981 0 3.671-.992 4.933-2.078 1.27-1.091 2.187-2.345 2.637-3.022a1.98 1.98 0 0 0 0-1.8c-.45-.677-1.367-1.931-2.637-3.022C11.67 2.992 9.981 2 8 2ZM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0-1.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/><line x1="2.5" y1="2.5" x2="13.5" y2="13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
@@ -18,7 +29,8 @@ const EYE_SLASH = `<svg width="13" height="13" viewBox="0 0 16 16" fill="current
 
 function buildRows(
   breakdown: Map<Category, CategoryStats>,
-  categories: Category[]
+  categories: Category[],
+  truncated: boolean
 ): string {
   const grandTotal = categories.reduce((sum, cat) => sum + (breakdown.get(cat)?.total ?? 0), 0);
   const totalAdded = categories.reduce((sum, cat) => sum + (breakdown.get(cat)?.added ?? 0), 0);
@@ -40,7 +52,7 @@ function buildRows(
       const eyeClass = isHidden ? "cat-toggle cat-toggle--hidden" : "cat-toggle";
       return `
       <div class="row${emptyClass}">
-        <span class="cat-name"><span class="cat-dot" style="background:${escapeHtml(cat.color ?? "#8c959f")}"></span>${escapeHtml(cat.name)}</span>
+        <span class="cat-name"><span class="cat-dot" style="background:${safeCssColor(cat.color)}"></span>${escapeHtml(cat.name)}</span>
         <span class="cat-files">${fileLabel}</span>
         <div class="bar-track">
           <div class="bar-half bar-left">
@@ -70,7 +82,7 @@ function buildRows(
       <span class="title"><svg class="title-icon" width="14" height="14" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="16" y="20" width="88" height="16" rx="4" fill="#0969da"/><rect x="16" y="44" width="72" height="16" rx="4" fill="#1f6feb"/><rect x="16" y="68" width="52" height="16" rx="4" fill="#388bfd"/><rect x="16" y="92" width="32" height="16" rx="4" fill="#79c0ff"/></svg>Line Breakdown</span>
       <span class="totals">
         <span class="total-lines">${grandTotal.toLocaleString()} lines</span>
-        <span class="total-files">${totalFiles.toLocaleString()} ${totalFiles === 1 ? "file" : "files"}</span>
+        <span class="total-files"${truncated ? ` title="${escapeHtml(TRUNCATION_NOTE)}"` : ""}>${truncated ? "first " : ""}${totalFiles.toLocaleString()} ${totalFiles === 1 ? "file" : "files"}</span>
         <span class="total-added">+${totalAdded.toLocaleString()}</span>
         <span class="total-removed">\u2212${totalRemoved.toLocaleString()}</span>
       </span>
@@ -83,6 +95,7 @@ function buildRows(
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export function renderLoadingState(): void {
+  showErrorMarker = false;
   setContent(`<div class="loading"><span class="spinner"></span>Loading\u2026</div>`);
 }
 
@@ -95,6 +108,7 @@ const ERROR_MESSAGES: Record<ApiError, string> = {
 };
 
 export function renderError(kind: ApiError): void {
+  showErrorMarker = true;
   const msg = ERROR_MESSAGES[kind];
   setContent(`<div class="error"><span class="error-icon">&#9888;</span>${escapeHtml(msg)}</div>`);
 }
@@ -102,9 +116,11 @@ export function renderError(kind: ApiError): void {
 export function renderHeaderIcon(
   breakdown: Map<Category, CategoryStats>,
   categories: Category[],
+  truncated: boolean,
   onToggleCategory: (categoryName: string, visible: boolean) => void
 ): void {
-  setContent(buildRows(breakdown, categories), onToggleCategory);
+  showErrorMarker = false;
+  setContent(buildRows(breakdown, categories, truncated), onToggleCategory);
 }
 
 export function getHiddenCategories(): ReadonlySet<string> {
@@ -127,6 +143,7 @@ function setContent(
   if (!anchor) return;
 
   (anchor as HTMLElement).style.cursor = "pointer";
+  syncErrorMarker(anchor);
 
   const shadow = ensureShadow();
   shadow.querySelector<HTMLElement>(".popup")!.innerHTML = html;
@@ -171,6 +188,35 @@ function setContent(
   if (host.style.display === "block") positionHost(host, anchor);
 }
 
+// The marker lives in GitHub's own chip, so it is styled inline like the badges and the
+// tree counts, and it takes its red from GitHub's theme.
+function syncErrorMarker(anchor: Element): void {
+  const existing = anchor.querySelector(`.${MARKER_CLASS}`);
+
+  if (!showErrorMarker) {
+    existing?.remove();
+    return;
+  }
+  if (existing) return;
+
+  const dot = document.createElement("span");
+  dot.className = MARKER_CLASS;
+  dot.setAttribute("role", "img");
+  dot.setAttribute("aria-label", "Line breakdown unavailable");
+  dot.title = "Line breakdown unavailable — hover for details";
+  dot.style.cssText = [
+    "display:inline-block",
+    "width:7px",
+    "height:7px",
+    "border-radius:50%",
+    "margin-left:6px",
+    "vertical-align:middle",
+    "flex-shrink:0",
+    "background:var(--fgColor-danger, var(--color-danger-fg, #cf222e))",
+  ].join(";");
+  anchor.appendChild(dot);
+}
+
 function positionHost(host: HTMLElement, anchor: Element): void {
   const rect = anchor.getBoundingClientRect();
   host.style.top = `${rect.bottom + window.scrollY + 8}px`;
@@ -202,9 +248,13 @@ function bindHoverListeners(host: HTMLElement, anchor: Element): void {
 }
 
 function ensureShadow(): ShadowRoot {
-  if (shadowRoot) return shadowRoot;
+  // The cached root is only usable while its host is still in the document. If something
+  // replaced the page's body under us, the cached root is attached to a detached host and
+  // every later render would write into nothing — so rebuild instead.
+  const existing = document.getElementById(HOST_ID);
+  if (shadowRoot && existing?.shadowRoot === shadowRoot) return shadowRoot;
 
-  document.getElementById(HOST_ID)?.remove();
+  existing?.remove();
 
   const host = document.createElement("div");
   host.id = HOST_ID;
@@ -228,12 +278,12 @@ const STYLES = `
   .popup {
     min-width: 480px;
     padding: 12px 16px 14px;
-    background: #ffffff;
-    border: 1px solid #d0d7de;
+    background: var(--bgColor-default, var(--color-canvas-default, #ffffff));
+    border: 1px solid var(--borderColor-default, var(--color-border-default, #d0d7de));
     border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(31,35,40,0.12), 0 2px 6px rgba(31,35,40,0.06);
+    box-shadow: var(--shadow-floating-small, 0 8px 24px rgba(31,35,40,0.12), 0 2px 6px rgba(31,35,40,0.06));
     font-size: 13px;
-    color: #1f2328;
+    color: var(--fgColor-default, var(--color-fg-default, #1f2328));
     white-space: nowrap;
     cursor: default;
   }
@@ -244,7 +294,7 @@ const STYLES = `
     align-items: center;
     margin-bottom: 10px;
     padding-bottom: 10px;
-    border-bottom: 1px solid #eaeef2;
+    border-bottom: 1px solid var(--borderColor-muted, var(--color-border-muted, #eaeef2));
   }
 
   .title {
@@ -253,7 +303,7 @@ const STYLES = `
     gap: 6px;
     font-size: 13px;
     font-weight: 600;
-    color: #1f2328;
+    color: var(--fgColor-default, var(--color-fg-default, #1f2328));
   }
 
   .title-icon {
@@ -267,13 +317,13 @@ const STYLES = `
     font-size: 12px;
   }
 
-  .total-lines  { color: #656d76; }
-  .total-files  { color: #656d76; }
-  .total-added  { color: #1a7f37; font-weight: 500; }
-  .total-removed { color: #cf222e; font-weight: 500; }
+  .total-lines  { color: var(--fgColor-muted, var(--color-fg-muted, #656d76)); }
+  .total-files  { color: var(--fgColor-muted, var(--color-fg-muted, #656d76)); }
+  .total-added  { color: var(--fgColor-success, var(--color-success-fg, #1a7f37)); font-weight: 500; }
+  .total-removed { color: var(--fgColor-danger, var(--color-danger-fg, #cf222e)); font-weight: 500; }
 
   .cat-files {
-    color: #656d76;
+    color: var(--fgColor-muted, var(--color-fg-muted, #656d76));
     font-weight: 400;
     font-size: 11px;
     white-space: nowrap;
@@ -302,7 +352,7 @@ const STYLES = `
     align-items: center;
     gap: 5px;
     font-size: 12px;
-    color: #1f2328;
+    color: var(--fgColor-default, var(--color-fg-default, #1f2328));
     white-space: nowrap;
     overflow: hidden;
   }
@@ -324,15 +374,15 @@ const STYLES = `
   .bar-half {
     height: 6px;
     overflow: hidden;
-    background: #eaeef2;
+    background: var(--bgColor-neutral-muted, var(--color-neutral-muted, #eaeef2));
   }
 
   .bar-left  { display: flex; justify-content: flex-end;   border-radius: 3px 0 0 3px; }
   .bar-right { display: flex; justify-content: flex-start; border-radius: 0 3px 3px 0; }
 
   .bar-fill { height: 100%; transition: width 0.25s ease; }
-  .bar-added   { background: #2da44e; }
-  .bar-removed { background: #cf222e; }
+  .bar-added   { background: var(--bgColor-success-emphasis, var(--color-success-emphasis, #2da44e)); }
+  .bar-removed { background: var(--bgColor-danger-emphasis, var(--color-danger-emphasis, #cf222e)); }
 
   .stat {
     font-size: 12px;
@@ -341,12 +391,12 @@ const STYLES = `
     min-width: 48px;
   }
 
-  .stat-added   { color: #1a7f37; }
-  .stat-removed { color: #cf222e; }
+  .stat-added   { color: var(--fgColor-success, var(--color-success-fg, #1a7f37)); }
+  .stat-removed { color: var(--fgColor-danger, var(--color-danger-fg, #cf222e)); }
 
   .pct {
     font-size: 11px;
-    color: #656d76;
+    color: var(--fgColor-muted, var(--color-fg-muted, #656d76));
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
@@ -363,7 +413,7 @@ const STYLES = `
     border: none;
     padding: 0;
     cursor: pointer;
-    color: #8c959f;
+    color: var(--fgColor-muted, var(--color-fg-muted, #8c959f));
     opacity: 0.5;
     border-radius: 3px;
     width: 20px;
@@ -374,22 +424,22 @@ const STYLES = `
 
   .cat-toggle:hover {
     opacity: 1;
-    background: #f6f8fa;
+    background: var(--bgColor-muted, var(--color-canvas-subtle, #f6f8fa));
   }
 
   .cat-toggle--hidden {
     opacity: 1;
-    color: #cf222e;
+    color: var(--fgColor-danger, var(--color-danger-fg, #cf222e));
   }
 
   .cat-toggle--hidden:hover {
-    background: #fff0f0;
+    background: var(--bgColor-danger-muted, var(--color-danger-subtle, #fff0f0));
   }
 
   .footer {
     margin-top: 8px;
     padding-top: 8px;
-    border-top: 1px solid #eaeef2;
+    border-top: 1px solid var(--borderColor-muted, var(--color-border-muted, #eaeef2));
     text-align: right;
   }
 
@@ -398,7 +448,7 @@ const STYLES = `
     border: none;
     padding: 0;
     font-size: 11px;
-    color: #0969da;
+    color: var(--fgColor-accent, var(--color-accent-fg, #0969da));
     cursor: pointer;
     font-family: inherit;
   }
@@ -412,7 +462,7 @@ const STYLES = `
     align-items: center;
     gap: 8px;
     padding: 2px 0;
-    color: #656d76;
+    color: var(--fgColor-muted, var(--color-fg-muted, #656d76));
     font-size: 13px;
   }
 
@@ -421,7 +471,7 @@ const STYLES = `
     align-items: center;
     gap: 8px;
     padding: 2px 0;
-    color: #cf222e;
+    color: var(--fgColor-danger, var(--color-danger-fg, #cf222e));
     font-size: 13px;
     max-width: 380px;
     white-space: normal;
@@ -437,8 +487,8 @@ const STYLES = `
     display: inline-block;
     width: 13px;
     height: 13px;
-    border: 2px solid #d0d7de;
-    border-top-color: #0969da;
+    border: 2px solid var(--borderColor-default, var(--color-border-default, #d0d7de));
+    border-top-color: var(--fgColor-accent, var(--color-accent-fg, #0969da));
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
     flex-shrink: 0;

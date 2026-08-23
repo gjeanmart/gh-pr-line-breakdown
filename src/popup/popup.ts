@@ -1,6 +1,7 @@
 import { buildBreakdown } from "../matcher.js";
 import type { Category } from "../config.js";
 import type { FileEntry } from "../matcher.js";
+import { safeCssColor } from "../color.js";
 import { parseGitHubUrl } from "../page.js";
 
 const content = document.getElementById("content")!;
@@ -16,7 +17,7 @@ function showMessage(text: string, loading = false): void {
     : `<p class="message">${escapeHtml(text)}</p>`;
 }
 
-function renderBreakdown(files: FileEntry[], categories: Category[]): void {
+function renderBreakdown(files: FileEntry[], categories: Category[], truncated: boolean): void {
   const breakdown = buildBreakdown(files, categories);
 
   const grandTotal = categories.reduce((s, c) => s + (breakdown.get(c)?.total ?? 0), 0);
@@ -32,7 +33,7 @@ function renderBreakdown(files: FileEntry[], categories: Category[]): void {
     return `
       <div class="row${emptyClass}">
         <div class="cat-info">
-          <span class="cat-dot" style="background:${escapeHtml(cat.color ?? "#8c959f")}"></span>
+          <span class="cat-dot" style="background:${safeCssColor(cat.color)}"></span>
           <div>
             <span class="cat-name">${escapeHtml(cat.name)}</span>
             <span class="cat-files">${fileLabel}</span>
@@ -49,7 +50,7 @@ function renderBreakdown(files: FileEntry[], categories: Category[]): void {
     ? `<div class="rows-footer"><button class="toggle-empty">${hideEmpty ? `Show ${emptyCount} empty` : "Hide empty"}</button></div>`
     : "";
 
-  const filesLabel = totalFiles === 1 ? "1 file" : `${totalFiles.toLocaleString()} files`;
+  const filesLabel = `${truncated ? "first " : ""}${totalFiles === 1 ? "1 file" : `${totalFiles.toLocaleString()} files`}`;
 
   content.innerHTML = `
     <div class="breakdown-header">
@@ -86,7 +87,7 @@ async function init(): Promise<void> {
 
   showMessage("Loading\u2026", true);
 
-  let response: { status: string; files?: FileEntry[]; categories?: Category[] };
+  let response: { status: string; files?: FileEntry[]; categories?: Category[]; truncated?: boolean };
   try {
     response = await chrome.tabs.sendMessage(tab.id!, { type: "getBreakdown" });
   } catch {
@@ -103,7 +104,7 @@ async function init(): Promise<void> {
     return;
   }
 
-  renderBreakdown(response.files!, response.categories!);
+  renderBreakdown(response.files!, response.categories!, response.truncated === true);
 }
 
 document.getElementById("btn-options")!.addEventListener("click", () => {

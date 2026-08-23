@@ -72,6 +72,11 @@ async function main() {
       resolve(__dirname, "src/options/options.css"),
       resolve(__dirname, "dist/options/options.css")
     ),
+    // Shared palette for the extension's own pages — both HTML files link ../theme.css
+    copyFile(
+      resolve(__dirname, "src/theme.css"),
+      resolve(__dirname, "dist/theme.css")
+    ),
     ...[16, 32, 48, 128].map((size) =>
       copyFile(
         resolve(__dirname, `src/icons/icon${size}.png`),

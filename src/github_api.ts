@@ -2,7 +2,13 @@ import type { FileEntry } from "./matcher.js";
 import type { GitHubPage } from "./page.js";
 
 export type ApiError = "rate_limit" | "not_accessible" | "auth_required" | "network" | "unknown";
-export type ApiResult = { files: FileEntry[] } | { error: ApiError };
+/** `truncated` means the PR has more files than the API will hand over — see MAX_PAGES. */
+export type ApiResult = { files: FileEntry[]; truncated?: boolean } | { error: ApiError };
+
+// 100 files per page, so 30 pages is a hard 3,000-file ceiling.
+const PER_PAGE = 100;
+const MAX_PAGES = 30;
+export const MAX_FILES = PER_PAGE * MAX_PAGES;
 
 function buildHeaders(token?: string): Record<string, string> {
   const headers: Record<string, string> = {
@@ -37,14 +43,14 @@ export function fetchFiles(page: GitHubPage, token?: string): Promise<ApiResult>
   return page.kind === "pr" ? fetchPrFiles(page, token) : fetchCommitFiles(page, token);
 }
 
-// PRs paginate at 100 files/page; the 30-page ceiling caps us at 3,000 files.
 async function fetchPrFiles(page: GitHubPage, token?: string): Promise<ApiResult> {
   const { owner, repo, ref } = page;
   const headers = buildHeaders(token);
   const files: FileEntry[] = [];
+  let truncated = false;
 
-  for (let pageNum = 1; pageNum <= 30; pageNum++) {
-    const url = `https://api.github.com/repos/${owner}/${repo}/pulls/${ref}/files?per_page=100&page=${pageNum}`;
+  for (let pageNum = 1; pageNum <= MAX_PAGES; pageNum++) {
+    const url = `https://api.github.com/repos/${owner}/${repo}/pulls/${ref}/files?per_page=${PER_PAGE}&page=${pageNum}`;
     let res: Response;
     try {
       res = await fetch(url, { headers });
@@ -56,10 +62,13 @@ async function fetchPrFiles(page: GitHubPage, token?: string): Promise<ApiResult
 
     const batch: RawFile[] = await res.json();
     files.push(...mapFiles(batch));
-    if (batch.length < 100) break;
+
+    if (batch.length < PER_PAGE) break;
+    // A full last page means there is more we are not going to ask for
+    if (pageNum === MAX_PAGES) truncated = true;
   }
 
-  return { files };
+  return truncated ? { files, truncated } : { files };
 }
 
 // A commit's files come back in the commit payload itself — a single request.

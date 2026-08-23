@@ -2,6 +2,7 @@ import type { Category } from "./config.js";
 import type { FileEntry } from "./matcher.js";
 import { classifyFile } from "./matcher.js";
 import { collapseFile, expandFile } from "./collapse.js";
+import { readableTextColor, safeCssColor } from "./color.js";
 
 const BADGE_CLASS = "gh-breakdown-badge";
 const EXPAND_LABEL_PREFIX = "Expand all lines: ";
@@ -120,6 +121,19 @@ export function clearBadges(): void {
   filteredFiles.clear();
 }
 
+/**
+ * Expand every file this filter collapsed and forget them. Used when the categories change
+ * under us: the old filter no longer means anything, and leaving files collapsed with no
+ * record of why would strand them shut.
+ */
+export function restoreFilteredFiles(): void {
+  for (const filename of Array.from(filteredFiles)) {
+    const header = fileHeaderMap.get(filename);
+    if (header) expandFile(header);
+  }
+  filteredFiles.clear();
+}
+
 export function setFilesVisible(filenames: string[], visible: boolean): void {
   for (const filename of filenames) {
     const header = fileHeaderMap.get(filename);
@@ -206,7 +220,7 @@ function insertBadge(headerContainer: HTMLElement, badge: HTMLElement): void {
 }
 
 function createBadge(category: Category): HTMLElement {
-  const color = category.color ?? "#8c959f";
+  const color = safeCssColor(category.color);
   const badge = document.createElement("span");
   badge.className = BADGE_CLASS;
   badge.textContent = category.name;
@@ -217,7 +231,7 @@ function createBadge(category: Category): HTMLElement {
     "border-radius:10px",
     "font-size:11px",
     "font-weight:500",
-    "color:#ffffff",
+    `color:${readableTextColor(color)}`,
     `background:${color}`,
     "white-space:nowrap",
     "line-height:18px",

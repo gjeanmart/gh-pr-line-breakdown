@@ -83,7 +83,7 @@ function buildRows(
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export function renderLoadingState(): void {
-  setContent(`<div class="loading"><span class="spinner"></span>Loading\u2026</div>`, true);
+  setContent(`<div class="loading"><span class="spinner"></span>Loading\u2026</div>`);
 }
 
 const ERROR_MESSAGES: Record<ApiError, string> = {
@@ -96,7 +96,7 @@ const ERROR_MESSAGES: Record<ApiError, string> = {
 
 export function renderError(kind: ApiError): void {
   const msg = ERROR_MESSAGES[kind];
-  setContent(`<div class="error"><span class="error-icon">&#9888;</span>${escapeHtml(msg)}</div>`, true);
+  setContent(`<div class="error"><span class="error-icon">&#9888;</span>${escapeHtml(msg)}</div>`);
 }
 
 export function renderHeaderIcon(
@@ -104,7 +104,7 @@ export function renderHeaderIcon(
   categories: Category[],
   onToggleCategory: (categoryName: string, visible: boolean) => void
 ): void {
-  setContent(buildRows(breakdown, categories), false, onToggleCategory);
+  setContent(buildRows(breakdown, categories), onToggleCategory);
 }
 
 export function getHiddenCategories(): ReadonlySet<string> {
@@ -117,9 +117,10 @@ export function resetCategoryFilter(): void {
 
 // ── Core render ───────────────────────────────────────────────────────────────
 
+// The popup is only ever opened by hover — see bindHoverListeners. Rendering content never
+// opens it, so navigating from a PR list into a PR no longer pops the widget open unasked.
 function setContent(
   html: string,
-  autoShow: boolean,
   onToggleCategory?: (categoryName: string, visible: boolean) => void
 ): void {
   const anchor = findDiffstatAnchor();
@@ -166,10 +167,8 @@ function setContent(
     bindHoverListeners(host, anchor);
   }
 
-  if (autoShow) {
-    positionHost(host, anchor);
-    host.style.display = "block";
-  }
+  // Content can change while the popup is open (loading -> rows): keep it anchored.
+  if (host.style.display === "block") positionHost(host, anchor);
 }
 
 function positionHost(host: HTMLElement, anchor: Element): void {

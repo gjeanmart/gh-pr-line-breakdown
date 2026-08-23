@@ -23,6 +23,17 @@ export async function injectBadges(files: FileEntry[], categories: Category[]): 
   for (const file of files) {
     fileMap.set(file.filename, classifyFile(file.filename, categories));
   }
+  // Cheapest possible exit: one query instead of four document-wide sweeps plus a hash pass.
+  // Both conditions matter — badges present tells us the page is annotated, and a populated
+  // map tells us we still know which header belongs to which file. GitHub re-rendering a file
+  // header takes our badge with it, so the count drops and the next pass does the work.
+  if (
+    fileHeaderMap.size >= files.length &&
+    document.querySelectorAll(`.${BADGE_CLASS}`).length >= files.length
+  ) {
+    return 0;
+  }
+
   // Per-call set: prevents two strategies from processing the same path in one call.
   const injectedPaths = new Set<string>();
   let injected = 0;

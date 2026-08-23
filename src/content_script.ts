@@ -16,6 +16,7 @@ let observer: MutationObserver | null = null;
 let cachedPath: string | null = null;
 let cachedFiles: FileEntry[] | null = null;
 let cachedError: boolean = false;
+let cachedTruncated: boolean = false;
 let lastHref = location.href;
 
 async function init(): Promise<void> {
@@ -67,6 +68,7 @@ async function runBreakdown(): Promise<void> {
     cachedPath = page.path;
     cachedFiles = null;
     cachedError = false;
+    cachedTruncated = false;
     resetCategoryFilter();
     clearBadges();
     clearTreeCounts();
@@ -78,6 +80,7 @@ async function runBreakdown(): Promise<void> {
       return;
     }
     cachedFiles = result.files;
+    cachedTruncated = result.truncated === true;
   }
 
   if (cachedError) return;
@@ -87,7 +90,7 @@ async function runBreakdown(): Promise<void> {
   const breakdown = buildBreakdown(cachedFiles, categories);
   const filesByCategory = buildFilesByCategory(cachedFiles, categories);
 
-  renderHeaderIcon(breakdown, categories, (catName, visible) => {
+  renderHeaderIcon(breakdown, categories, cachedTruncated, (catName, visible) => {
     setFilesVisible(filesByCategory.get(catName) ?? [], visible);
   });
 
@@ -154,7 +157,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     sendResponse({ status: "loading" });
     return;
   }
-  sendResponse({ status: "ready", files: cachedFiles, categories: currentConfig.categories });
+  sendResponse({
+    status: "ready",
+    files: cachedFiles,
+    categories: currentConfig.categories,
+    truncated: cachedTruncated,
+  });
 });
 
 init();

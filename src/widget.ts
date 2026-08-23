@@ -17,6 +17,11 @@ const hiddenCategories: Set<string> = new Set();
 // only opens on hover, so without this an API failure is completely silent.
 const MARKER_CLASS = "gh-breakdown-alert";
 
+// Shown when the PR has more files than the API will return, so a partial total is never
+// presented as if it were the whole PR.
+const TRUNCATION_NOTE =
+  "This PR has more files than the GitHub API returns (3,000 max), so these totals are partial.";
+
 const EYE_OPEN = `<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M8 2c-1.981 0-3.671.992-4.933 2.078C1.797 5.169.88 6.423.43 7.1a1.98 1.98 0 0 0 0 1.8c.45.677 1.367 1.931 2.637 3.022C4.33 13.008 6.019 14 8 14c1.981 0 3.671-.992 4.933-2.078 1.27-1.091 2.187-2.345 2.637-3.022a1.98 1.98 0 0 0 0-1.8c-.45-.677-1.367-1.931-2.637-3.022C11.67 2.992 9.981 2 8 2ZM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0-1.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/></svg>`;
 const EYE_SLASH = `<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M8 2c-1.981 0-3.671.992-4.933 2.078C1.797 5.169.88 6.423.43 7.1a1.98 1.98 0 0 0 0 1.8c.45.677 1.367 1.931 2.637 3.022C4.33 13.008 6.019 14 8 14c1.981 0 3.671-.992 4.933-2.078 1.27-1.091 2.187-2.345 2.637-3.022a1.98 1.98 0 0 0 0-1.8c-.45-.677-1.367-1.931-2.637-3.022C11.67 2.992 9.981 2 8 2ZM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0-1.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/><line x1="2.5" y1="2.5" x2="13.5" y2="13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
 
@@ -24,7 +29,8 @@ const EYE_SLASH = `<svg width="13" height="13" viewBox="0 0 16 16" fill="current
 
 function buildRows(
   breakdown: Map<Category, CategoryStats>,
-  categories: Category[]
+  categories: Category[],
+  truncated: boolean
 ): string {
   const grandTotal = categories.reduce((sum, cat) => sum + (breakdown.get(cat)?.total ?? 0), 0);
   const totalAdded = categories.reduce((sum, cat) => sum + (breakdown.get(cat)?.added ?? 0), 0);
@@ -76,7 +82,7 @@ function buildRows(
       <span class="title"><svg class="title-icon" width="14" height="14" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="16" y="20" width="88" height="16" rx="4" fill="#0969da"/><rect x="16" y="44" width="72" height="16" rx="4" fill="#1f6feb"/><rect x="16" y="68" width="52" height="16" rx="4" fill="#388bfd"/><rect x="16" y="92" width="32" height="16" rx="4" fill="#79c0ff"/></svg>Line Breakdown</span>
       <span class="totals">
         <span class="total-lines">${grandTotal.toLocaleString()} lines</span>
-        <span class="total-files">${totalFiles.toLocaleString()} ${totalFiles === 1 ? "file" : "files"}</span>
+        <span class="total-files"${truncated ? ` title="${escapeHtml(TRUNCATION_NOTE)}"` : ""}>${truncated ? "first " : ""}${totalFiles.toLocaleString()} ${totalFiles === 1 ? "file" : "files"}</span>
         <span class="total-added">+${totalAdded.toLocaleString()}</span>
         <span class="total-removed">\u2212${totalRemoved.toLocaleString()}</span>
       </span>
@@ -110,10 +116,11 @@ export function renderError(kind: ApiError): void {
 export function renderHeaderIcon(
   breakdown: Map<Category, CategoryStats>,
   categories: Category[],
+  truncated: boolean,
   onToggleCategory: (categoryName: string, visible: boolean) => void
 ): void {
   showErrorMarker = false;
-  setContent(buildRows(breakdown, categories), onToggleCategory);
+  setContent(buildRows(breakdown, categories, truncated), onToggleCategory);
 }
 
 export function getHiddenCategories(): ReadonlySet<string> {

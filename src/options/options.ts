@@ -66,6 +66,9 @@ function renderCategories(): void {
     });
 
     card.querySelector("[data-action='remove']")?.addEventListener("click", () => {
+      // Read the form back first, as add and drag-reorder already do — otherwise removing
+      // one card silently discards whatever was typed into the others.
+      readFormIntoConfig();
       config.categories.splice(index, 1);
       renderCategories();
     });

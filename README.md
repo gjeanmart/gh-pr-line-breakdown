@@ -42,6 +42,11 @@ By default, unauthenticated API calls are limited to **60 requests/hour**. For p
 
 ## Planned features
 
+- **Pin the breakdown open** — click the diffstat to keep the popup open instead of holding the cursor still, click again to release
+- **Sort categories by size** — read the breakdown biggest-first instead of in matching order (category order is matching precedence, which is rarely the order you want to read)
+- **Filter shortcuts** — "show only this category" and "show/hide everything" from the widget, so driving the eye icons on a large PR takes one click rather than eight
+- **Copy the breakdown as markdown** — one button, for pasting into a PR description or a review comment
+- **Filter from the toolbar popup** — the popup shows the same numbers as the widget but cannot act on them yet
 - **Firefox support** — publish to the Firefox Add-ons Marketplace (AMO)
 - **Category pills on PR list pages** — inject mini colored category pills on GitHub's PR list view so you can see the file-type composition of a PR before opening it
 - **LLM integration** — connect to a cloud (OpenAI, Anthropic, etc.) or local (Ollama) LLM for AI-assisted review: category-aware PR summaries, review focus suggestions, inline comment proposals, and risk flagging. Configurable endpoint and API key in the Settings tab

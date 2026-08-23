@@ -44,6 +44,7 @@ gh-pr-line-breakdown/
 │   ├── page.test.ts        # URL parsing (pure, no DOM)
 │   ├── filter.test.ts      # end-to-end: badges + collapse over captured markup
 │   ├── color.test.ts       # colour sanitising + contrast (pure)
+│   ├── github_api.test.ts  # pagination, truncation, error mapping (stubbed fetch)
 │   └── fixtures/           # captured GitHub markup (PR header, commit header)
 ├── package.json
 ├── tsconfig.json
@@ -429,7 +430,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 npm install
 npm run build          # outputs to dist/
-npm run test           # vitest unit tests (83 tests)
+npm run test           # vitest unit tests (98 tests)
 ```
 
 To load in Chrome:
@@ -514,9 +515,12 @@ MutationObserver, GitHub API for file data.
 - [x] Expand default categories (CI/CD, Infrastructure, Config, Database, Styles)
 - [x] Show/hide empty categories toggle in widget and popup
 - [x] Category colors — configurable per category; shown as pill badge on file diff headers and as color swatch in widget/popup
+- [x] Theme awareness — injected surfaces read GitHub's own theme variables; the popup and
+      options pages share `src/theme.css`; badge text picked by WCAG contrast
 - [ ] Review and polish UI/UX design (widget + options page)
 - [ ] Publish to the Chrome Web Store (first manual submission pending)
-- [ ] Expand test coverage — more edge cases in `matcher.test.ts`, integration-style tests
+- [ ] Expand test coverage — remaining gaps are the folder rollup in `file_tree.ts` and the
+      options-page import validator
 - [ ] Manage specific config per repo
 - [x] Add a **show/hide icon per category row** in the widget to filter (show/hide) the matching files in GitHub's Files Changed tab
 - [x] Inject **`+N -N` line counts** into GitHub's PR file tree (left sidebar) next to each file and folder (folders show rolled-up totals)
@@ -527,6 +531,46 @@ MutationObserver, GitHub API for file data.
 - [ ] **GitLab support** — extend to GitLab MR pages (`gitlab.com` + self-hosted); abstract the host-specific API client and DOM injection behind a provider interface (`GitHubProvider`, `GitLabProvider`) so `content_script.ts` stays provider-agnostic. GitLab REST API: `GET /projects/:id/merge_requests/:iid/changes`.
 - [ ] **Gitea support** — extend to Gitea/Forgejo instances (self-hosted); add a `GiteaProvider` using `GET /repos/{owner}/{repo}/pulls/{index}/files`. User configures instance URLs in the Settings tab.
 - [x] **Commit page support** — extend the extension to work on GitHub commit pages (`github.com/{owner}/{repo}/commit/{sha}`); fetch changed files via `GET /repos/{owner}/{repo}/commits/{sha}` and render the same breakdown widget and file badges as on PR pages.
+
+### Known issues, deferred from v0.1.6
+
+Found in the v0.1.6 review; all real, none visible to a user in normal use — which is why
+they were left out of that release rather than rushed into it.
+
+**Bugs**
+
+- [ ] A config can lose its fallback category with no way back: the options UI shows the
+      `fallback` badge but cannot set or move it, and import does not require one. Without a
+      fallback, `classifyFile` silently uses whichever category is last (`matcher.ts`).
+- [ ] `showToast` never clears its timeout, so rapid saves stack timers (`options.ts`).
+
+**Performance**
+
+- [ ] Every pass runs four document-wide `querySelectorAll` calls in `injectBadges` plus one
+      over all tree items, whether or not anything changed. Scope them to the diff container
+      and skip the pass when the injected counts already match.
+- [ ] The `MutationObserver` is attached on every `github.com` page and never disconnects, so
+      on a non-PR page each DOM change still schedules a timer that wakes up and returns.
+
+**Coherence**
+
+- [ ] `escapeHtml` is defined three times (`widget.ts`, `popup.ts`, `options.ts`), and the
+      totals/percentage/file-label arithmetic exists twice — in `widget.ts` and `popup.ts`,
+      already drifting in wording. Wants a shared `html.ts` and a shared summary function.
+- [ ] Types are scattered: `Category`/`Config` in `config.ts`, `FileEntry`/`CategoryStats` in
+      `matcher.ts`, so `github_api.ts` imports its file type from the matcher.
+- [ ] `badges.ts` still holds three jobs — badge injection, the filename → header map, and the
+      filter's public API. The map deserves its own module with its contract stated, since two
+      other modules depend on exactly what it stores.
+- [ ] Two idioms for injected styling: a stylesheet in the widget's shadow root, long
+      `cssText` strings in `badges.ts` and `file_tree.ts`.
+- [ ] `release.mjs` has no dry run, and fails confusingly when the version already matches the
+      target (its bump commit then has nothing to commit).
+
+**Noted, not a bug**
+
+- Renames are classified by their new path only. The API returns `previous_filename`, so a
+  file moved from `src/` into `tests/` counts entirely as Tests. Almost always what you want.
 
 ---
 

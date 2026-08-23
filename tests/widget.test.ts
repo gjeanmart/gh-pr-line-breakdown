@@ -21,9 +21,12 @@ async function freshWidget() {
 
 const host = () => document.getElementById(HOST_ID)!;
 
-function renderRows(widget: Awaited<ReturnType<typeof freshWidget>>): void {
+function renderRows(
+  widget: Awaited<ReturnType<typeof freshWidget>>,
+  truncated = false
+): void {
   const { categories } = DEFAULT_CONFIG;
-  widget.renderHeaderIcon(buildBreakdown(FILES, categories), categories, () => {});
+  widget.renderHeaderIcon(buildBreakdown(FILES, categories), categories, truncated, () => {});
 }
 
 beforeEach(() => {
@@ -152,5 +155,27 @@ describe("error marker on the diffstat", () => {
 
     expect(marker().length).toBe(1);
     expect(host().shadowRoot!.textContent).toContain("Authentication required");
+  });
+});
+
+describe("truncated file lists", () => {
+  const header = () => host().shadowRoot!.querySelector(".total-files")!;
+
+  it("says the file count is partial when the API capped it", async () => {
+    const widget = await freshWidget();
+
+    renderRows(widget, true);
+
+    expect(header().textContent).toBe("first 2 files");
+    expect(header().getAttribute("title")).toContain("3,000 max");
+  });
+
+  it("says nothing extra for a normal PR", async () => {
+    const widget = await freshWidget();
+
+    renderRows(widget);
+
+    expect(header().textContent).toBe("2 files");
+    expect(header().getAttribute("title")).toBeNull();
   });
 });

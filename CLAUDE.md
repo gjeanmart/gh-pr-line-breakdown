@@ -19,6 +19,7 @@ gh-pr-line-breakdown/
 │   ├── content_script.ts   # injected on github.com/*/pull/* pages
 │   ├── widget.ts           # hover popup rendering (anchored to diffstat)
 │   ├── anchor.ts           # locates GitHub's +N −N diffstat element (DOM-only, testable)
+│   ├── collapse.ts         # drives GitHub's own per-file collapse control
 │   ├── badges.ts           # injects colored category pill badges into file diff headers
 │   ├── file_tree.ts        # injects +N -N line counts into the PR file tree sidebar
 │   ├── matcher.ts          # wildcard category matching (custom globMatch, no deps)
@@ -36,6 +37,7 @@ gh-pr-line-breakdown/
 │   ├── matcher.test.ts     # vitest unit tests for matcher logic
 │   ├── anchor.test.ts      # jsdom tests for diffstat anchor detection
 │   ├── widget.test.ts      # jsdom tests for popup hover behaviour
+│   ├── collapse.test.ts    # jsdom tests for the collapse control
 │   └── fixtures/           # captured GitHub markup (PR header, commit header)
 ├── package.json
 ├── tsconfig.json
@@ -229,26 +231,35 @@ time. `clearBadges()` removes all injected badges when navigating to a new PR.
 A 10×10px rounded color swatch (`.cat-dot`) also appears to the left of each category name
 in the hover widget and the extension popup.
 
-**Category filter / collapse** (`setFilesVisible`, `fileHeaderMap`):
+**Category filter / collapse** (`setFilesVisible`, `fileHeaderMap`, `src/collapse.ts`):
 
 Each strategy also stores the resolved `headerContainer` in `fileHeaderMap: Map<string, HTMLElement>`
 (filename → header element). This map drives the category filter: when the user clicks an eye
 icon in the widget, `setFilesVisible(filenames, false)` collapses the matching file diffs.
 
-Collapse is implemented by hiding siblings of the header wrapper inside the file section —
-matching GitHub's native collapse behaviour (header stays visible, diff body hides):
+Collapsing **drives GitHub's own collapse control** rather than hiding DOM ourselves — the
+chevron IconButton present in every file header, on PR and commit pages alike:
 
-```
-GitHub Primer React DOM ancestor chain (no <details> element):
-  level 0: DiffFileHeader-module__diff-file-header  ← fileHeaderMap value
-  level 1: Diff-module__diffHeaderWrapper            ← header wrapper
-  level 2: Diff-module__diffTargetable               ← full file section (header + diff body)
+```html
+<button aria-label="Collapse file"><svg class="octicon octicon-chevron-down"></svg></button>
+<button aria-label="Expand file">  <svg class="octicon octicon-chevron-right"></svg></button>
 ```
 
-`collapseFile(header)` sets `display:none` on all children of `fileSection` except
-`headerWrapper`, then marks the section with `data-gh-breakdown-filtered`. `expandFile`
-restores them. `filteredFiles: Set<string>` tracks which files *we* collapsed so we
-don't accidentally expand files the user had manually collapsed.
+`findCollapseToggle` checks the **icon class before the label**: the icon is language
+independent, and Primer sometimes moves the accessible name into an `aria-labelledby`
+tooltip instead of `aria-label`.
+
+Why not hide the diff body ourselves (what this used to do): a file whose body is
+`display:none` is not the same thing as a *collapsed* file to GitHub's stylesheet — the
+header lost its bottom border — and the hand-rolled ancestor walk (`diffTargetable` on PR
+pages, "first ancestor whose parent has >1 children" on commit pages) never worked on
+commit pages at all.
+
+`collapseFile` returns `true` only when it actually clicked, so `filteredFiles: Set<string>`
+holds exactly the files *we* collapsed and the filter never expands a file the user (or
+GitHub, for large diffs) had already collapsed. `setFilesVisible` also skips files already
+in `filteredFiles`, so re-applying an active filter after a DOM refresh does not slam shut
+a file the user deliberately expanded inside a hidden category.
 
 ### File tree line counts — `src/file_tree.ts`
 
@@ -299,7 +310,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 npm install
 npm run build          # outputs to dist/
-npm run test           # vitest unit tests (35 tests)
+npm run test           # vitest unit tests (43 tests)
 ```
 
 To load in Chrome:

@@ -1,11 +1,10 @@
 import type { Category } from "./config.js";
 import type { FileEntry } from "./matcher.js";
 import { classifyFile } from "./matcher.js";
+import { collapseFile, expandFile } from "./collapse.js";
 
 const BADGE_CLASS = "gh-breakdown-badge";
 const EXPAND_LABEL_PREFIX = "Expand all lines: ";
-// Attribute placed on a file's section element when collapsed by our category filter
-const FILTER_ATTR = "data-gh-breakdown-filtered";
 // Attribute stamped on a header container by insertBadge() to prevent a second strategy
 // from injecting a duplicate badge during the SAME injectBadges() call.
 // Cleared at the end of every injectBadges() call so the next call refreshes fileHeaderMap.
@@ -114,114 +113,16 @@ export function setFilesVisible(filenames: string[], visible: boolean): void {
     if (!header) continue;
 
     if (!visible) {
+      // Skip files we already collapsed. content_script re-applies active filters after
+      // every DOM refresh, and without this a file the user deliberately expanded inside
+      // a hidden category would be slammed shut again on the next mutation.
+      if (filteredFiles.has(filename)) continue;
       if (collapseFile(header)) filteredFiles.add(filename);
     } else {
       if (!filteredFiles.has(filename)) continue;
       expandFile(header);
       filteredFiles.delete(filename);
     }
-  }
-}
-
-// Collapsing strategy — works for both PR pages and commit pages:
-//
-// 1. Find fileSection via CSS module class substring "diffTargetable" (present in
-//    Diff-module__diffTargetable__<hash>).  This is more robust than fixed-depth
-//    traversal because the header→fileSection depth differs between PR and commit pages.
-// 2. Find the direct child of fileSection that is an ancestor of `header` — this is
-//    the "header branch" (diffHeaderWrapper on PR pages, possibly different on commit).
-// 3. Hide all other direct children of fileSection (the diff body).
-//    If there are none (pre-collapsed file with no diff body loaded), hide the entire
-//    fileSection instead so the row disappears from view.
-
-// PR pages (Primer React):
-//   header [0] → diffHeaderWrapper [1] → diffTargetable [2] (header + diff body as siblings)
-//   Strategy: find diffTargetable via CSS class; hide non-header children (diff body).
-//
-// Commit pages:
-//   header [0] → diffHeaderWrapper [1, children:1] → wrapper [2, children:1]
-//     → file-wrapper [3, children:1] → all-files container [4, children:N]
-//   The diff content is toggled by a CSS class on the header, not by DOM siblings.
-//   Strategy: hide the individual file wrapper (first ancestor whose parent has >1 children).
-
-// PR strategy: find diffTargetable by CSS class.
-function findDiffTargetable(from: HTMLElement): HTMLElement | null {
-  let el: HTMLElement | null = from.parentElement;
-  for (let i = 0; i < 12 && el; i++) {
-    const cls = typeof el.className === "string" ? el.className : "";
-    if (cls && /diffTargetable/i.test(cls)) return el;
-    el = el.parentElement;
-  }
-  return null;
-}
-
-// Return the direct child of `section` that contains `header` (or is `header`).
-function findHeaderBranch(header: HTMLElement, section: HTMLElement): HTMLElement | null {
-  let el: HTMLElement | null = header;
-  while (el) {
-    if (el.parentElement === section) return el;
-    el = el.parentElement;
-  }
-  return null;
-}
-
-// Commit strategy: find the individual file wrapper = first ancestor whose parent has >1 children.
-// That parent is the all-files container; this ancestor is the single-file row within it.
-function findIndividualFileWrapper(header: HTMLElement): HTMLElement | null {
-  let el: HTMLElement = header;
-  for (let depth = 0; depth < 12; depth++) {
-    const parent = el.parentElement;
-    if (!parent) break;
-    if (parent.children.length > 1) return el;
-    el = parent;
-  }
-  return null;
-}
-
-function collapseFile(header: HTMLElement): boolean {
-  // Strategy 1 — PR pages: hide diff body, keep file header visible.
-  const diffTargetable = findDiffTargetable(header);
-  if (diffTargetable && !diffTargetable.hasAttribute(FILTER_ATTR)) {
-    const headerBranch = findHeaderBranch(header, diffTargetable);
-    if (headerBranch) {
-      let hiddenAny = false;
-      for (const child of Array.from(diffTargetable.children) as HTMLElement[]) {
-        if (child !== headerBranch) {
-          child.style.display = "none";
-          hiddenAny = true;
-        }
-      }
-      // No diff body in DOM (pre-collapsed) — hide the entire section.
-      if (!hiddenAny) diffTargetable.style.display = "none";
-      diffTargetable.setAttribute(FILTER_ATTR, "1");
-      return true;
-    }
-  }
-
-  // Strategy 2 — Commit pages: hide the entire individual file wrapper.
-  const fileWrapper = findIndividualFileWrapper(header);
-  if (fileWrapper && !fileWrapper.hasAttribute(FILTER_ATTR)) {
-    fileWrapper.style.display = "none";
-    fileWrapper.setAttribute(FILTER_ATTR, "1");
-    return true;
-  }
-
-  return false;
-}
-
-function expandFile(header: HTMLElement): void {
-  // Walk up from header to find the element stamped with FILTER_ATTR by collapseFile.
-  let el: HTMLElement | null = header.parentElement;
-  for (let i = 0; i < 14 && el; i++) {
-    if (el.hasAttribute(FILTER_ATTR)) {
-      el.style.display = "";
-      for (const child of Array.from(el.children) as HTMLElement[]) {
-        (child as HTMLElement).style.display = "";
-      }
-      el.removeAttribute(FILTER_ATTR);
-      return;
-    }
-    el = el.parentElement;
   }
 }
 

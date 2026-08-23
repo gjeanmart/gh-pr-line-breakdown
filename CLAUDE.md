@@ -40,6 +40,7 @@ gh-pr-line-breakdown/
 │   ├── widget.test.ts      # jsdom tests for popup hover behaviour
 │   ├── collapse.test.ts    # jsdom tests for the collapse control
 │   ├── page.test.ts        # URL parsing (pure, no DOM)
+│   ├── filter.test.ts      # end-to-end: badges + collapse over captured markup
 │   └── fixtures/           # captured GitHub markup (PR header, commit header)
 ├── package.json
 ├── tsconfig.json
@@ -241,10 +242,22 @@ Three strategies cover GitHub's different header structures:
    all file paths are hashed with `crypto.subtle.digest('SHA-256', ...)` and matched against
    these anchors. This makes `injectBadges` async.
 
-All three strategies insert the badge immediately before the `button[aria-label*="Viewed"]`
-button for consistent positioning. `findHeaderContainer` walks up the DOM to find the
-smallest ancestor with exactly one "Viewed" button, scoping badge injection to one file at a
-time. `clearBadges()` removes all injected badges when navigating to a new PR.
+Strategy 3's hashing is **lazy**: it only runs when there is an unresolved `#diff-` anchor
+left after strategies 1 and 2, which on most pages means never.
+
+`findHeaderContainer` walks up from the matched element looking for the smallest ancestor
+with exactly one "Viewed" button, falling back to an ancestor whose class matches
+`diff-file-header` / `DiffFileHeader` (commit pages have no "Viewed" buttons).
+
+⚠️ **That fallback usually lands on `DiffFileHeader-module__file-path-section`, not the whole
+header row** — the class test matches any `DiffFileHeader-module__*` class, and the path
+section is hit first. So the element in `fileHeaderMap` is often an inner section of the
+header, and `insertBadge` then places the badge next to the file name rather than before the
+"Viewed" button. That is where the badges actually render today, and it looks fine — but
+anything that needs a *sibling* of the path section (the collapse control does) must climb
+out of it. Do not assume `fileHeaderMap` holds the full header row.
+
+`clearBadges()` removes all injected badges when navigating to a new PR.
 
 A 10×10px rounded color swatch (`.cat-dot`) also appears to the left of each category name
 in the hover widget and the extension popup.
@@ -266,6 +279,14 @@ chevron IconButton present in every file header, on PR and commit pages alike:
 `findCollapseToggle` checks the **icon class before the label**: the icon is language
 independent, and Primer sometimes moves the accessible name into an `aria-labelledby`
 tooltip instead of `aria-label`.
+
+It also **climbs**: starting from the element it was handed (see the warning above — usually
+the file-path section, whose subtree does not contain the chevron), it walks up to 4 levels
+until a scope contains exactly one control. Zero means keep climbing; more than one means it
+has reached a container holding several files, and it gives up rather than collapse the
+wrong one. Shipping this without the climb is what broke the eye icon on both page types in
+v0.1.6-dev — every synthetic unit test passed, because they were written against markup
+where the control sat inside the header element.
 
 Why not hide the diff body ourselves (what this used to do): a file whose body is
 `display:none` is not the same thing as a *collapsed* file to GitHub's stylesheet — the
@@ -352,7 +373,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 npm install
 npm run build          # outputs to dist/
-npm run test           # vitest unit tests (63 tests)
+npm run test           # vitest unit tests (69 tests)
 ```
 
 To load in Chrome:
@@ -452,6 +473,22 @@ MutationObserver, GitHub API for file data.
 - [x] **Commit page support** — extend the extension to work on GitHub commit pages (`github.com/{owner}/{repo}/commit/{sha}`); fetch changed files via `GET /repos/{owner}/{repo}/commits/{sha}` and render the same breakdown widget and file badges as on PR pages.
 
 ---
+
+## Test fixtures
+
+`tests/fixtures/` holds **captured GitHub markup**, not hand-written approximations:
+
+- `commit_header.html` — the commit total diffstat and both per-file headers from a real
+  commit page, complete with the chevron IconButton, `aria-labelledby` tooltips and CSS
+  module class names. Only SVG path data is stripped.
+- `pr_header.html` — the real PR header structure, with the diffstat chip filled in from the
+  `DiffStats` component source (the server ships a loading skeleton there).
+
+Each file documents its own deviations at the top. Keep them that way: an abridged fixture
+that drops the element under test is worse than no fixture, because it makes a passing suite
+lie. `tests/filter.test.ts` exists specifically to drive badge injection and collapse
+*together* over this markup, which is the seam where per-function tests agreed with each
+other and disagreed with GitHub.
 
 ## DOM debugging
 

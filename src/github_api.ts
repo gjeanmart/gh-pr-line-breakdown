@@ -2,8 +2,19 @@ import type { FileEntry } from "./matcher.js";
 import type { GitHubPage } from "./page.js";
 
 export type ApiError = "rate_limit" | "not_accessible" | "auth_required" | "network" | "unknown";
+
+/** What the API says about our quota. Every response carries it; we used to read it only to
+ *  tell a rate-limited 403 from a forbidden one. */
+export type RateLimit = {
+  remaining: number;
+  limit: number;
+  /** When the window resets, in ms since the epoch — null if the header was missing. */
+  resetAt: number | null;
+};
 /** `truncated` means the PR has more files than the API will hand over — see MAX_PAGES. */
-export type ApiResult = { files: FileEntry[]; truncated?: boolean } | { error: ApiError };
+export type ApiResult =
+  | { files: FileEntry[]; truncated?: boolean; rate?: RateLimit }
+  | { error: ApiError; rate?: RateLimit };
 
 // 100 files per page, so 30 pages is a hard 3,000-file ceiling.
 const PER_PAGE = 100;
@@ -17,6 +28,19 @@ function buildHeaders(token?: string): Record<string, string> {
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   return headers;
+}
+
+function readRateLimit(res: Response): RateLimit | undefined {
+  const remaining = Number(res.headers.get("X-RateLimit-Remaining"));
+  const limit = Number(res.headers.get("X-RateLimit-Limit"));
+  if (!Number.isFinite(remaining) || !res.headers.get("X-RateLimit-Remaining")) return undefined;
+
+  const reset = Number(res.headers.get("X-RateLimit-Reset"));
+  return {
+    remaining,
+    limit: Number.isFinite(limit) ? limit : 0,
+    resetAt: Number.isFinite(reset) && reset > 0 ? reset * 1000 : null,
+  };
 }
 
 function classifyError(res: Response): ApiError {
@@ -48,6 +72,7 @@ async function fetchPrFiles(page: GitHubPage, token?: string): Promise<ApiResult
   const headers = buildHeaders(token);
   const files: FileEntry[] = [];
   let truncated = false;
+  let rate: RateLimit | undefined;
 
   for (let pageNum = 1; pageNum <= MAX_PAGES; pageNum++) {
     const url = `https://api.github.com/repos/${owner}/${repo}/pulls/${ref}/files?per_page=${PER_PAGE}&page=${pageNum}`;
@@ -58,7 +83,9 @@ async function fetchPrFiles(page: GitHubPage, token?: string): Promise<ApiResult
       return { error: "network" };
     }
 
-    if (!res.ok) return { error: classifyError(res) };
+    if (!res.ok) return { error: classifyError(res), rate: readRateLimit(res) };
+
+    rate = readRateLimit(res);
 
     const batch: RawFile[] = await res.json();
     files.push(...mapFiles(batch));
@@ -68,7 +95,7 @@ async function fetchPrFiles(page: GitHubPage, token?: string): Promise<ApiResult
     if (pageNum === MAX_PAGES) truncated = true;
   }
 
-  return truncated ? { files, truncated } : { files };
+  return truncated ? { files, truncated, rate } : { files, rate };
 }
 
 // A commit's files come back in the commit payload itself — a single request.
@@ -83,8 +110,8 @@ async function fetchCommitFiles(page: GitHubPage, token?: string): Promise<ApiRe
     return { error: "network" };
   }
 
-  if (!res.ok) return { error: classifyError(res) };
+  if (!res.ok) return { error: classifyError(res), rate: readRateLimit(res) };
 
   const data: { files?: RawFile[] } = await res.json();
-  return { files: mapFiles(data.files ?? []) };
+  return { files: mapFiles(data.files ?? []), rate: readRateLimit(res) };
 }

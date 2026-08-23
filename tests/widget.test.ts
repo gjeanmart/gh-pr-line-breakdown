@@ -21,12 +21,14 @@ async function freshWidget() {
 
 const host = () => document.getElementById(HOST_ID)!;
 
-function renderRows(
-  widget: Awaited<ReturnType<typeof freshWidget>>,
-  truncated = false
-): void {
+type Widget = Awaited<ReturnType<typeof freshWidget>>;
+
+function renderRows(widget: Widget, ctx: Parameters<Widget["renderHeaderIcon"]>[2] = {}): void {
   const { categories } = DEFAULT_CONFIG;
-  widget.renderHeaderIcon(buildBreakdown(FILES, categories), categories, truncated, () => {});
+  widget.renderHeaderIcon(buildBreakdown(FILES, categories), categories, {
+    onToggleCategory: () => {},
+    ...ctx,
+  });
 }
 
 beforeEach(() => {
@@ -164,7 +166,7 @@ describe("truncated file lists", () => {
   it("says the file count is partial when the API capped it", async () => {
     const widget = await freshWidget();
 
-    renderRows(widget, true);
+    renderRows(widget, { truncated: true });
 
     expect(header().textContent).toBe("first 2 files");
     expect(header().getAttribute("title")).toContain("3,000 max");
@@ -177,5 +179,78 @@ describe("truncated file lists", () => {
 
     expect(header().textContent).toBe("2 files");
     expect(header().getAttribute("title")).toBeNull();
+  });
+});
+
+describe("quota and token guidance", () => {
+  const shadow = () => host().shadowRoot!;
+  const rate = (remaining: number, resetAt: number | null = null) => ({ remaining, limit: 60, resetAt });
+
+  it("says how many calls are left once the number starts to matter", async () => {
+    const widget = await freshWidget();
+
+    renderRows(widget, { rate: rate(7), hasToken: false, onOpenSettings: () => {} });
+
+    expect(shadow().querySelector(".quota")!.textContent).toContain("7 API calls left this hour");
+  });
+
+  it("keeps quiet while there is plenty of quota", async () => {
+    const widget = await freshWidget();
+
+    renderRows(widget, { rate: rate(48), hasToken: false, onOpenSettings: () => {} });
+
+    expect(shadow().querySelector(".quota")).toBeNull();
+  });
+
+  it("keeps quiet when a token is configured, whatever the number", async () => {
+    const widget = await freshWidget();
+
+    renderRows(widget, { rate: rate(2), hasToken: true, onOpenSettings: () => {} });
+
+    expect(shadow().querySelector(".quota")).toBeNull();
+  });
+
+  it("reads correctly for a single remaining call", async () => {
+    const widget = await freshWidget();
+
+    renderRows(widget, { rate: rate(1), onOpenSettings: () => {} });
+
+    expect(shadow().querySelector(".quota")!.textContent).toContain("1 API call left");
+  });
+
+  it("offers a way to the token field when the error is one a token fixes", async () => {
+    const widget = await freshWidget();
+    const opened = vi.fn();
+
+    widget.renderError("rate_limit", { onOpenSettings: opened, rate: rate(0) });
+    shadow().querySelector<HTMLElement>(".settings-action")!.click();
+
+    expect(opened).toHaveBeenCalledOnce();
+  });
+
+  it("says when the quota resets", async () => {
+    const widget = await freshWidget();
+    // 1 Jan 2026, 09:05 local
+    const resetAt = new Date(2026, 0, 1, 9, 5).getTime();
+
+    widget.renderError("rate_limit", { rate: rate(0, resetAt), onOpenSettings: () => {} });
+
+    expect(shadow().querySelector(".error")!.textContent).toMatch(/Resets at 0?9:05/);
+  });
+
+  it("offers nothing to click for an error a token cannot fix", async () => {
+    const widget = await freshWidget();
+
+    widget.renderError("network", { onOpenSettings: () => {} });
+
+    expect(shadow().querySelector(".settings-action")).toBeNull();
+  });
+
+  it("labels the action differently when a token is already set", async () => {
+    const widget = await freshWidget();
+
+    widget.renderError("not_accessible", { hasToken: true, onOpenSettings: () => {} });
+
+    expect(shadow().querySelector(".settings-action")!.textContent).toBe("Check your token");
   });
 });

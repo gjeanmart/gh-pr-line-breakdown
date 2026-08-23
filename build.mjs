@@ -1,6 +1,7 @@
 // Programmatic Vite build — runs two separate builds:
 //  1. content_script  → dist/content_script.js  (IIFE, fully self-contained)
-//  2. popup + options → dist/popup/popup.js, dist/options/options.js  (ES modules)
+//  2. background      → dist/background.js      (IIFE service worker)
+//  3. popup + options → dist/popup/popup.js, dist/options/options.js  (ES modules)
 // Also copies static HTML files to dist/.
 
 import { build } from "vite";
@@ -26,7 +27,22 @@ async function main() {
     },
   });
 
-  // ── Build 2: popup + options (ES modules) ─────────────────────────────────
+  // ── Build 2: background service worker (IIFE, no imports of its own) ──────
+  await build({
+    configFile: false,
+    build: {
+      outDir: resolve(__dirname, "dist"),
+      emptyOutDir: false,
+      lib: {
+        entry: resolve(__dirname, "src/background.ts"),
+        name: "GhLineBreakdownBackground",
+        formats: ["iife"],
+        fileName: () => "background.js",
+      },
+    },
+  });
+
+  // ── Build 3: popup + options (ES modules) ─────────────────────────────────
   await build({
     configFile: false,
     build: {

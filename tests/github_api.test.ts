@@ -34,7 +34,28 @@ describe("fetchFiles — pull requests", () => {
 
     const result = await fetchFiles(PR);
 
-    expect(result).toEqual({ files: [{ filename: "src/app.ts", added: 12, removed: 3 }] });
+    expect(result).toMatchObject({ files: [{ filename: "src/app.ts", added: 12, removed: 3 }] });
+  });
+
+  it("reads the quota from a successful response", async () => {
+    stubFetch(
+      () =>
+        new Response("[]", {
+          status: 200,
+          headers: { "X-RateLimit-Remaining": "42", "X-RateLimit-Limit": "60" },
+        })
+    );
+
+    expect(await fetchFiles(PR)).toEqual({
+      files: [],
+      rate: { remaining: 42, limit: 60, resetAt: null },
+    });
+  });
+
+  it("reports no quota when the headers are absent", async () => {
+    stubFetch(() => ok([]));
+
+    expect(await fetchFiles(PR)).toEqual({ files: [], rate: undefined });
   });
 
   it("follows pagination until a short page arrives", async () => {
@@ -85,7 +106,7 @@ describe("fetchFiles — commits", () => {
   it("copes with a commit payload that has no files at all", async () => {
     stubFetch(() => ok({ sha: "abc1234" }));
 
-    expect(await fetchFiles(COMMIT)).toEqual({ files: [] });
+    expect(await fetchFiles(COMMIT)).toMatchObject({ files: [] });
   });
 });
 
@@ -100,7 +121,20 @@ describe("fetchFiles — failures", () => {
   ])("maps %s to %s", async (_label, status, headers, expected) => {
     stubFetch(() => fail(status as number, headers as Record<string, string> | undefined));
 
-    expect(await fetchFiles(PR)).toEqual({ error: expected });
+    // toMatchObject: an error response may also carry the rate-limit headers
+    expect(await fetchFiles(PR)).toMatchObject({ error: expected });
+  });
+
+  it("keeps the quota headers from a failed response", async () => {
+    // This is how the widget knows when a rate limit resets
+    stubFetch(() =>
+      fail(403, { "X-RateLimit-Remaining": "0", "X-RateLimit-Limit": "60", "X-RateLimit-Reset": "1800000000" })
+    );
+
+    expect(await fetchFiles(PR)).toEqual({
+      error: "rate_limit",
+      rate: { remaining: 0, limit: 60, resetAt: 1800000000000 },
+    });
   });
 
   it("maps a thrown request to a network error", async () => {

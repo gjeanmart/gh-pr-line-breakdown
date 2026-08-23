@@ -2,6 +2,7 @@ import type { Category } from "./config.js";
 import type { FileEntry } from "./matcher.js";
 import { classifyFile } from "./matcher.js";
 import { collapseFile, expandFile } from "./collapse.js";
+import { readableTextColor, safeCssColor } from "./color.js";
 
 const BADGE_CLASS = "gh-breakdown-badge";
 const EXPAND_LABEL_PREFIX = "Expand all lines: ";
@@ -206,7 +207,7 @@ function insertBadge(headerContainer: HTMLElement, badge: HTMLElement): void {
 }
 
 function createBadge(category: Category): HTMLElement {
-  const color = category.color ?? "#8c959f";
+  const color = safeCssColor(category.color);
   const badge = document.createElement("span");
   badge.className = BADGE_CLASS;
   badge.textContent = category.name;
@@ -217,7 +218,7 @@ function createBadge(category: Category): HTMLElement {
     "border-radius:10px",
     "font-size:11px",
     "font-weight:500",
-    "color:#ffffff",
+    `color:${readableTextColor(color)}`,
     `background:${color}`,
     "white-space:nowrap",
     "line-height:18px",

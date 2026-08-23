@@ -1,0 +1,65 @@
+/* Shared palette for the extension's own pages — the popup and the options page.
+ *
+ * The surfaces injected into GitHub (the widget, the header badges, the tree counts) do NOT
+ * use this file: they read GitHub's own theme variables instead, so they follow whichever
+ * theme the reader picked, dimmed and high-contrast variants included. These two pages have
+ * no such host to inherit from, so they carry the palette themselves.
+ *
+ * Values are GitHub's light and dark palettes, so the extension looks like part of the site
+ * it annotates rather than a stranger in a popup.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --bg: #ffffff;
+  --bg-subtle: #f6f8fa;
+  --fg: #1f2328;
+  --fg-muted: #656d76;
+  --fg-subtle: #8c959f;
+  --border: #d0d7de;
+  --border-muted: #eaeef2;
+
+  --accent: #0969da;
+  --accent-subtle: #ddf4ff;
+  --accent-faint: #f0f6ff;
+  --tab-active: #fd8c73;
+  --focus-ring: rgba(9, 105, 218, .15);
+
+  /* White in both themes: text that sits on a saturated button, never on the page */
+  --fg-on-emphasis: #ffffff;
+
+  --success: #1a7f37;
+  --success-emphasis: #1a7f37;
+  --success-emphasis-hover: #116329;
+
+  --danger: #cf222e;
+  --danger-subtle: #fff1f0;
+  --danger-border: #f3a7aa;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --bg-subtle: #151b23;
+    --fg: #e6edf3;
+    --fg-muted: #9198a1;
+    --fg-subtle: #6e7681;
+    --border: #3d444d;
+    --border-muted: #262c36;
+
+    --accent: #4493f8;
+    --accent-subtle: #121d2f;
+    --accent-faint: #10243c;
+    --tab-active: #f78166;
+    --focus-ring: rgba(68, 147, 248, .3);
+
+    --success: #3fb950;
+    --success-emphasis: #238636;
+    --success-emphasis-hover: #2ea043;
+
+    --danger: #f85149;
+    --danger-subtle: #25171c;
+    --danger-border: #6e2b2b;
+  }
+}

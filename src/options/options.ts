@@ -1,4 +1,9 @@
 import { loadConfig, saveConfig, DEFAULT_CONFIG, type Category, type Config } from "../config.js";
+import { safeCssColor } from "../color.js";
+
+// The palette the "add category" button starts from, and the fallback for a colour that is
+// not a plain hex value.
+const NEW_CATEGORY_COLOR = "#0969da";
 
 let config: Config = { categories: [] };
 let dragSrcIndex: number | null = null;
@@ -43,11 +48,11 @@ function renderCategories(): void {
       : "";
 
     card.setAttribute("draggable", "true");
-    card.style.borderLeftColor = cat.color ?? "#0969da";
+    card.style.borderLeftColor = safeCssColor(cat.color, NEW_CATEGORY_COLOR);
     card.innerHTML = `
       <div class="category-header">
         <span class="drag-handle" title="Drag to reorder">&#8942;&#8942;</span>
-        <input type="color" class="cat-color" value="${cat.color ?? "#0969da"}" title="Badge color" />
+        <input type="color" class="cat-color" value="${safeCssColor(cat.color, NEW_CATEGORY_COLOR)}" title="Badge color" />
         <input type="text" class="cat-name" draggable="false" value="${escapeAttr(cat.name)}" placeholder="Category name" />
         ${fallbackBadge}
         ${removeBtn}
@@ -57,7 +62,7 @@ function renderCategories(): void {
     `;
 
     card.querySelector<HTMLInputElement>(".cat-color")!.addEventListener("input", (e) => {
-      card.style.borderLeftColor = (e.target as HTMLInputElement).value;
+      card.style.borderLeftColor = safeCssColor((e.target as HTMLInputElement).value, NEW_CATEGORY_COLOR);
     });
 
     card.querySelector("[data-action='remove']")?.addEventListener("click", () => {
@@ -101,7 +106,7 @@ function readFormIntoConfig(): void {
 
   cards.forEach((card, index) => {
     const name = (card.querySelector<HTMLInputElement>(".cat-name")!).value.trim();
-    const color = (card.querySelector<HTMLInputElement>(".cat-color")!).value;
+    const color = safeCssColor((card.querySelector<HTMLInputElement>(".cat-color")!).value, NEW_CATEGORY_COLOR);
     const patternsRaw = (card.querySelector<HTMLTextAreaElement>(".cat-patterns")!).value;
     const patterns = patternsRaw.split("\n").map((p) => p.trim()).filter(Boolean);
     const fallback = config.categories[index]?.fallback ?? false;
@@ -134,7 +139,7 @@ function onAddCategory(): void {
   const insertAt = config.categories.length;
   config.categories.splice(insertAt, 0, {
     name: "New Category",
-    color: "#0969da",
+    color: NEW_CATEGORY_COLOR,
     patterns: [],
   });
   renderCategories();

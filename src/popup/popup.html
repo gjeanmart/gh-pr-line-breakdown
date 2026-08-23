@@ -4,13 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PR Line Breakdown</title>
+  <link rel="stylesheet" href="../theme.css" />
   <style>
     *, *::before, *::after { box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       font-size: 13px;
-      color: #1f2328;
-      background: #fff;
+      color: var(--fg);
+      background: var(--bg);
       margin: 0;
       padding: 14px 16px 16px;
       width: 300px;
@@ -22,19 +23,19 @@
       gap: 8px;
       margin-bottom: 12px;
       padding-bottom: 10px;
-      border-bottom: 1px solid #eaeef2;
+      border-bottom: 1px solid var(--border-muted);
     }
     .header img { display: block; flex-shrink: 0; }
     .header-title {
       font-size: 14px;
       font-weight: 600;
-      color: #1f2328;
+      color: var(--fg);
     }
 
     #content { margin-bottom: 12px; min-height: 32px; }
 
     .message {
-      color: #656d76;
+      color: var(--fg-muted);
       font-size: 12px;
       line-height: 1.5;
       margin: 4px 0;
@@ -47,14 +48,14 @@
       font-size: 11px;
       margin-bottom: 8px;
       padding-bottom: 8px;
-      border-bottom: 1px solid #eaeef2;
+      border-bottom: 1px solid var(--border-muted);
     }
-    .bh-lines  { color: #656d76; }
-    .bh-files  { color: #656d76; }
-    .bh-sep    { color: #d0d7de; }
+    .bh-lines  { color: var(--fg-muted); }
+    .bh-files  { color: var(--fg-muted); }
+    .bh-sep    { color: var(--border); }
     .bh-spacer { flex: 1; }
-    .bh-added  { color: #1a7f37; font-weight: 500; }
-    .bh-removed { color: #cf222e; font-weight: 500; }
+    .bh-added  { color: var(--success); font-weight: 500; }
+    .bh-removed { color: var(--danger); font-weight: 500; }
 
     .rows { display: flex; flex-direction: column; gap: 5px; }
     .rows.hide-empty .row--empty { display: none; }
@@ -68,7 +69,7 @@
       border: none;
       padding: 0;
       font-size: 11px;
-      color: #0969da;
+      color: var(--accent);
       cursor: pointer;
       font-family: inherit;
     }
@@ -96,7 +97,7 @@
     .cat-name {
       display: block;
       font-size: 12px;
-      color: #1f2328;
+      color: var(--fg);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -104,7 +105,7 @@
     .cat-files {
       display: block;
       font-size: 10px;
-      color: #656d76;
+      color: var(--fg-muted);
     }
 
     .stat {
@@ -112,12 +113,12 @@
       font-variant-numeric: tabular-nums;
       text-align: right;
     }
-    .stat-added   { color: #1a7f37; }
-    .stat-removed { color: #cf222e; }
+    .stat-added   { color: var(--success); }
+    .stat-removed { color: var(--danger); }
 
     .pct {
       font-size: 11px;
-      color: #656d76;
+      color: var(--fg-muted);
       text-align: right;
       font-variant-numeric: tabular-nums;
     }
@@ -131,8 +132,8 @@
       display: inline-block;
       width: 12px;
       height: 12px;
-      border: 2px solid #d0d7de;
-      border-top-color: #0969da;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
       border-radius: 50%;
       animation: spin 0.6s linear infinite;
       flex-shrink: 0;
@@ -143,31 +144,31 @@
       display: block;
       width: 100%;
       padding: 7px 0;
-      background: #f6f8fa;
-      color: #0969da;
-      border: 1px solid #d0d7de;
+      background: var(--bg-subtle);
+      color: var(--accent);
+      border: 1px solid var(--border);
       border-radius: 6px;
       font-size: 13px;
       cursor: pointer;
       text-align: center;
     }
-    .btn:hover { background: #ddf4ff; }
+    .btn:hover { background: var(--accent-subtle); }
 
     .footer {
       margin-top: 10px;
       padding-top: 8px;
-      border-top: 1px solid #eaeef2;
+      border-top: 1px solid var(--border-muted);
       display: flex;
       justify-content: space-between;
       align-items: center;
       font-size: 11px;
-      color: #8c959f;
+      color: var(--fg-subtle);
     }
     .footer a {
-      color: #8c959f;
+      color: var(--fg-subtle);
       text-decoration: none;
     }
-    .footer a:hover { color: #0969da; text-decoration: underline; }
+    .footer a:hover { color: var(--accent); text-decoration: underline; }
   </style>
 </head>
 <body>

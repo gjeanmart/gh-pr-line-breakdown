@@ -110,13 +110,13 @@ function createCount(stats: LineStats): HTMLElement {
 
   if (stats.added > 0) {
     const add = document.createElement("span");
-    add.style.color = "#1a7f37"; // GitHub green
+    add.style.color = "var(--fgColor-success, var(--color-success-fg, #1a7f37))";
     add.textContent = `+${stats.added}`;
     wrap.appendChild(add);
   }
   if (stats.removed > 0) {
     const rm = document.createElement("span");
-    rm.style.color = "#cf222e"; // GitHub red
+    rm.style.color = "var(--fgColor-danger, var(--color-danger-fg, #cf222e))";
     rm.textContent = `−${stats.removed}`;
     wrap.appendChild(rm);
   }

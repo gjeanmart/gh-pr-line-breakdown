@@ -1,6 +1,7 @@
 import { buildBreakdown } from "../matcher.js";
 import type { Category } from "../config.js";
 import type { FileEntry } from "../matcher.js";
+import { safeCssColor } from "../color.js";
 import { parseGitHubUrl } from "../page.js";
 
 const content = document.getElementById("content")!;
@@ -32,7 +33,7 @@ function renderBreakdown(files: FileEntry[], categories: Category[]): void {
     return `
       <div class="row${emptyClass}">
         <div class="cat-info">
-          <span class="cat-dot" style="background:${escapeHtml(cat.color ?? "#8c959f")}"></span>
+          <span class="cat-dot" style="background:${safeCssColor(cat.color)}"></span>
           <div>
             <span class="cat-name">${escapeHtml(cat.name)}</span>
             <span class="cat-files">${fileLabel}</span>

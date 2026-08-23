@@ -2,6 +2,7 @@ import type { Category } from "./config.js";
 import type { CategoryStats } from "./matcher.js";
 import type { ApiError } from "./github_api.js";
 import { findDiffstatAnchor } from "./anchor.js";
+import { safeCssColor } from "./color.js";
 
 const HOST_ID = "gh-line-breakdown-host";
 
@@ -40,7 +41,7 @@ function buildRows(
       const eyeClass = isHidden ? "cat-toggle cat-toggle--hidden" : "cat-toggle";
       return `
       <div class="row${emptyClass}">
-        <span class="cat-name"><span class="cat-dot" style="background:${escapeHtml(cat.color ?? "#8c959f")}"></span>${escapeHtml(cat.name)}</span>
+        <span class="cat-name"><span class="cat-dot" style="background:${safeCssColor(cat.color)}"></span>${escapeHtml(cat.name)}</span>
         <span class="cat-files">${fileLabel}</span>
         <div class="bar-track">
           <div class="bar-half bar-left">
@@ -228,12 +229,12 @@ const STYLES = `
   .popup {
     min-width: 480px;
     padding: 12px 16px 14px;
-    background: #ffffff;
-    border: 1px solid #d0d7de;
+    background: var(--bgColor-default, var(--color-canvas-default, #ffffff));
+    border: 1px solid var(--borderColor-default, var(--color-border-default, #d0d7de));
     border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(31,35,40,0.12), 0 2px 6px rgba(31,35,40,0.06);
+    box-shadow: var(--shadow-floating-small, 0 8px 24px rgba(31,35,40,0.12), 0 2px 6px rgba(31,35,40,0.06));
     font-size: 13px;
-    color: #1f2328;
+    color: var(--fgColor-default, var(--color-fg-default, #1f2328));
     white-space: nowrap;
     cursor: default;
   }
@@ -244,7 +245,7 @@ const STYLES = `
     align-items: center;
     margin-bottom: 10px;
     padding-bottom: 10px;
-    border-bottom: 1px solid #eaeef2;
+    border-bottom: 1px solid var(--borderColor-muted, var(--color-border-muted, #eaeef2));
   }
 
   .title {
@@ -253,7 +254,7 @@ const STYLES = `
     gap: 6px;
     font-size: 13px;
     font-weight: 600;
-    color: #1f2328;
+    color: var(--fgColor-default, var(--color-fg-default, #1f2328));
   }
 
   .title-icon {
@@ -267,13 +268,13 @@ const STYLES = `
     font-size: 12px;
   }
 
-  .total-lines  { color: #656d76; }
-  .total-files  { color: #656d76; }
-  .total-added  { color: #1a7f37; font-weight: 500; }
-  .total-removed { color: #cf222e; font-weight: 500; }
+  .total-lines  { color: var(--fgColor-muted, var(--color-fg-muted, #656d76)); }
+  .total-files  { color: var(--fgColor-muted, var(--color-fg-muted, #656d76)); }
+  .total-added  { color: var(--fgColor-success, var(--color-success-fg, #1a7f37)); font-weight: 500; }
+  .total-removed { color: var(--fgColor-danger, var(--color-danger-fg, #cf222e)); font-weight: 500; }
 
   .cat-files {
-    color: #656d76;
+    color: var(--fgColor-muted, var(--color-fg-muted, #656d76));
     font-weight: 400;
     font-size: 11px;
     white-space: nowrap;
@@ -302,7 +303,7 @@ const STYLES = `
     align-items: center;
     gap: 5px;
     font-size: 12px;
-    color: #1f2328;
+    color: var(--fgColor-default, var(--color-fg-default, #1f2328));
     white-space: nowrap;
     overflow: hidden;
   }
@@ -324,15 +325,15 @@ const STYLES = `
   .bar-half {
     height: 6px;
     overflow: hidden;
-    background: #eaeef2;
+    background: var(--bgColor-neutral-muted, var(--color-neutral-muted, #eaeef2));
   }
 
   .bar-left  { display: flex; justify-content: flex-end;   border-radius: 3px 0 0 3px; }
   .bar-right { display: flex; justify-content: flex-start; border-radius: 0 3px 3px 0; }
 
   .bar-fill { height: 100%; transition: width 0.25s ease; }
-  .bar-added   { background: #2da44e; }
-  .bar-removed { background: #cf222e; }
+  .bar-added   { background: var(--bgColor-success-emphasis, var(--color-success-emphasis, #2da44e)); }
+  .bar-removed { background: var(--bgColor-danger-emphasis, var(--color-danger-emphasis, #cf222e)); }
 
   .stat {
     font-size: 12px;
@@ -341,12 +342,12 @@ const STYLES = `
     min-width: 48px;
   }
 
-  .stat-added   { color: #1a7f37; }
-  .stat-removed { color: #cf222e; }
+  .stat-added   { color: var(--fgColor-success, var(--color-success-fg, #1a7f37)); }
+  .stat-removed { color: var(--fgColor-danger, var(--color-danger-fg, #cf222e)); }
 
   .pct {
     font-size: 11px;
-    color: #656d76;
+    color: var(--fgColor-muted, var(--color-fg-muted, #656d76));
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
@@ -363,7 +364,7 @@ const STYLES = `
     border: none;
     padding: 0;
     cursor: pointer;
-    color: #8c959f;
+    color: var(--fgColor-muted, var(--color-fg-muted, #8c959f));
     opacity: 0.5;
     border-radius: 3px;
     width: 20px;
@@ -374,22 +375,22 @@ const STYLES = `
 
   .cat-toggle:hover {
     opacity: 1;
-    background: #f6f8fa;
+    background: var(--bgColor-muted, var(--color-canvas-subtle, #f6f8fa));
   }
 
   .cat-toggle--hidden {
     opacity: 1;
-    color: #cf222e;
+    color: var(--fgColor-danger, var(--color-danger-fg, #cf222e));
   }
 
   .cat-toggle--hidden:hover {
-    background: #fff0f0;
+    background: var(--bgColor-danger-muted, var(--color-danger-subtle, #fff0f0));
   }
 
   .footer {
     margin-top: 8px;
     padding-top: 8px;
-    border-top: 1px solid #eaeef2;
+    border-top: 1px solid var(--borderColor-muted, var(--color-border-muted, #eaeef2));
     text-align: right;
   }
 
@@ -398,7 +399,7 @@ const STYLES = `
     border: none;
     padding: 0;
     font-size: 11px;
-    color: #0969da;
+    color: var(--fgColor-accent, var(--color-accent-fg, #0969da));
     cursor: pointer;
     font-family: inherit;
   }
@@ -412,7 +413,7 @@ const STYLES = `
     align-items: center;
     gap: 8px;
     padding: 2px 0;
-    color: #656d76;
+    color: var(--fgColor-muted, var(--color-fg-muted, #656d76));
     font-size: 13px;
   }
 
@@ -421,7 +422,7 @@ const STYLES = `
     align-items: center;
     gap: 8px;
     padding: 2px 0;
-    color: #cf222e;
+    color: var(--fgColor-danger, var(--color-danger-fg, #cf222e));
     font-size: 13px;
     max-width: 380px;
     white-space: normal;
@@ -437,8 +438,8 @@ const STYLES = `
     display: inline-block;
     width: 13px;
     height: 13px;
-    border: 2px solid #d0d7de;
-    border-top-color: #0969da;
+    border: 2px solid var(--borderColor-default, var(--color-border-default, #d0d7de));
+    border-top-color: var(--fgColor-accent, var(--color-accent-fg, #0969da));
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
     flex-shrink: 0;

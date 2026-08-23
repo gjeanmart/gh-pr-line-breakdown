@@ -18,6 +18,7 @@ gh-pr-line-breakdown/
 ├── src/
 │   ├── content_script.ts   # injected on github.com/*/pull/* pages
 │   ├── widget.ts           # hover popup rendering (anchored to diffstat)
+│   ├── anchor.ts           # locates GitHub's +N −N diffstat element (DOM-only, testable)
 │   ├── badges.ts           # injects colored category pill badges into file diff headers
 │   ├── file_tree.ts        # injects +N -N line counts into the PR file tree sidebar
 │   ├── matcher.ts          # wildcard category matching (custom globMatch, no deps)
@@ -32,7 +33,9 @@ gh-pr-line-breakdown/
 │       └── options.ts      # category editor + GitHub token field
 ├── dist/                   # build output — DO NOT edit manually
 ├── tests/
-│   └── matcher.test.ts     # vitest unit tests for matcher logic
+│   ├── matcher.test.ts     # vitest unit tests for matcher logic
+│   ├── anchor.test.ts      # jsdom tests for diffstat anchor detection
+│   └── fixtures/           # captured GitHub markup (PR header, commit header)
 ├── package.json
 ├── tsconfig.json
 └── vite.config.ts          # vitest config only (build uses build.mjs)
@@ -44,7 +47,8 @@ gh-pr-line-breakdown/
 
 - **TypeScript** throughout
 - **Vite 5** for bundling (outputs to `dist/`), build driven by `build.mjs`
-- **vitest** for unit tests
+- **vitest** for unit tests — `jsdom` for the DOM-level anchor tests, opted into
+  per file with `// @vitest-environment jsdom`; everything else runs in `node`
 - **Custom `globMatch`** in `matcher.ts` — replaces minimatch (minimatch is broken
   in browser IIFE bundles; the custom parser handles all needed patterns correctly)
 - No UI framework — vanilla DOM for widget and options page
@@ -110,12 +114,51 @@ scraping, which misses lazily-loaded files on large PRs.
 
 The widget is a hover popup anchored to the native GitHub `+N -N ████` diffstat element.
 
-**Anchor detection** (in order):
+**Anchor detection** — `src/anchor.ts`
 
-1. `document.querySelector('[class*="diffStatesWrap"]')` — the Primer React element
-   that wraps the `+610 -3 ████` line (most reliable)
-2. Fallback: walk up from `[role="tablist"]`, look for a sibling element containing
-   a `.fgColor-success` or `.color-fg-success` span
+Kept in its own DOM-only module (no chrome APIs, no widget state) so it can be unit tested
+against captured GitHub markup — see `tests/anchor.test.ts` and `tests/fixtures/`.
+
+GitHub renders the `+610 -3 ████` chip with its `DiffStats` Primer React component — on PR
+headers, commit headers and once per file. That component has **no stable CSS-module class**
+(the old `DiffStates-module__diffStatesWrap` wrapper was removed), so detection hooks the two
+contracts that survive: the `data-testid="<kind> diffstat"` squares and the `sr-only`
+"Lines changed:" label.
+
+```html
+<div class="d-flex flex-items-center gap-1">     <!-- the chip — our anchor -->
+  <span class="f6 fgColor-success text-bold">+610</span>
+  <span class="f6 fgColor-danger text-bold">-3</span>
+  <span class="sr-only">Lines changed: 610 additions & 3 deletions</span>
+  <div class="d-flex">                           <!-- DiffSquares -->
+    <div data-testid="addition diffstat"></div>   <!-- 5 squares -->
+  </div>
+</div>
+```
+
+Order of attempts:
+
+1. `[class*="diffStatesWrap"]` — legacy wrapper, still present on older GitHub Enterprise
+2. A diffstat square (or the `sr-only` label when `hideSquares` is set) found **inside a
+   header scope**, so a per-file diffstat is never picked: `[class*="rightContentWrapper"]`
+   (PR header, `float: right` slot), `[data-component="PH_Navigation"]`,
+   `[class*="StickyPullRequestHeader"]`, `[class*="commitFilesChangedContainer"]`
+   (commit header), `[class*="ilesChangedHeading"]`
+3. The same search document-wide, skipping per-file and file-tree containers
+   (`[role="treeitem"]`, `[class*="TreeView"]`, `[class*="DiffFileHeader"]`,
+   `[class*="diff-file-header"]`, `[class*="diffTargetable"]`, `.file-header`)
+4. Fallback: walk up from the PR tab nav — `[role="tablist"]` is gone, the nav is now
+   `nav[aria-label="Pull request navigation tabs"]` / `[class*="TabNav"]` — looking for a
+   sibling containing a `.fgColor-success` or `.color-fg-success` span
+
+From a square we climb to the chip: the closest ancestor whose **direct children** include
+the `sr-only` label or a `.fgColor-success` span.
+
+Every candidate passes through `isVisible()`, which walks computed styles for
+`display: none` / `visibility: hidden`. GitHub ships duplicate header slots and hides the
+inactive one with a container query, so an invisible clone would otherwise win the query.
+`getClientRects()` would be more precise in a browser but always returns nothing under
+jsdom, which has no layout engine — that would make the module untestable.
 
 The shadow host (`div#gh-line-breakdown-host`) is appended to `document.body` with
 `position: absolute`. The shadow root contains the `<style>` block and a `.popup` div.
@@ -250,7 +293,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 npm install
 npm run build          # outputs to dist/
-npm run test           # vitest unit tests (19 tests)
+npm run test           # vitest unit tests (29 tests)
 ```
 
 To load in Chrome:

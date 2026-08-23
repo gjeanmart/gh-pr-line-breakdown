@@ -1,6 +1,7 @@
 import type { Category } from "./config.js";
 import type { CategoryStats } from "./matcher.js";
 import type { ApiError } from "./github_api.js";
+import { findDiffstatAnchor } from "./anchor.js";
 
 const HOST_ID = "gh-line-breakdown-host";
 
@@ -214,31 +215,6 @@ function ensureShadow(): ShadowRoot {
   shadowRoot = host.attachShadow({ mode: "open" });
   shadowRoot.innerHTML = `<style>${STYLES}</style><div class="popup"></div>`;
   return shadowRoot;
-}
-
-// ── Anchor detection ──────────────────────────────────────────────────────────
-
-function findDiffstatAnchor(): Element | null {
-  const diffStates = document.querySelector('[class*="diffStatesWrap"]');
-  if (diffStates) return diffStates;
-
-  const tablist = document.querySelector('[role="tablist"]');
-  if (!tablist) return null;
-
-  let el: Element | null = tablist;
-  for (let i = 0; i < 5; i++) {
-    el = el?.parentElement ?? null;
-    if (!el) break;
-    const parent: HTMLElement | null = el.parentElement;
-    if (!parent) break;
-    for (const child of Array.from<Element>(parent.children)) {
-      if (child !== el && child.querySelector(".fgColor-success, .color-fg-success")) {
-        return child;
-      }
-    }
-  }
-
-  return null;
 }
 
 // ── Styles (Shadow DOM — fully isolated from GitHub's page styles) ────────────

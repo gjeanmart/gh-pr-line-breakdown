@@ -209,13 +209,11 @@ export function parseImportedCategories(json: string): Category[] | null {
 }
 
 export async function loadConfig(): Promise<Config> {
+  // MV3's storage API returns promises; the hand-rolled callback wrappers this used to have
+  // were both noisier and, under @types/chrome 0.2, untypeable.
   const [syncResult, localResult] = await Promise.all([
-    new Promise<Record<string, unknown>>((resolve) =>
-      chrome.storage.sync.get("config", resolve)
-    ),
-    new Promise<Record<string, unknown>>((resolve) =>
-      chrome.storage.local.get("githubToken", resolve)
-    ),
+    chrome.storage.sync.get("config"),
+    chrome.storage.local.get("githubToken"),
   ]);
   const base = (syncResult["config"] as Config | undefined) ?? DEFAULT_CONFIG;
   return {
@@ -230,11 +228,7 @@ export async function saveConfig(config: Config): Promise<void> {
   const { githubToken, ...rest } = config;
   const syncConfig = { ...rest, categories: normalizeCategories(rest.categories) };
   await Promise.all([
-    new Promise<void>((resolve) =>
-      chrome.storage.sync.set({ config: syncConfig }, resolve)
-    ),
-    new Promise<void>((resolve) =>
-      chrome.storage.local.set({ githubToken: githubToken ?? null }, resolve)
-    ),
+    chrome.storage.sync.set({ config: syncConfig }),
+    chrome.storage.local.set({ githubToken: githubToken ?? null }),
   ]);
 }

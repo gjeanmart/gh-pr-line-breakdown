@@ -113,6 +113,14 @@ describe("category filter over captured commit markup", () => {
     expect(shape("CLAUDE.md").replace(/( button)+$/, "")).toBe(whenExpanded.replace(/( button)+$/, ""));
   });
 
+  it("keeps the badge clear of the file name", async () => {
+    // It sits immediately after the path now, so its own margin is the only spacing there is
+    await injectBadges(FILES, CATEGORIES);
+
+    const badge = document.querySelector<HTMLElement>(".gh-breakdown-badge")!;
+    expect(badge.style.marginLeft).toBe("8px");
+  });
+
   it("hides a category by clicking each file's collapse control", async () => {
     await injectBadges(FILES, CATEGORIES);
     const clicks = wireToggles(["CLAUDE.md", "README.md"]);

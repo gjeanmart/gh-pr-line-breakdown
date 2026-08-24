@@ -267,7 +267,10 @@ function createBadge(category: Category): HTMLElement {
     `background:${color}`,
     "white-space:nowrap",
     "line-height:18px",
-    "margin-right:8px",
+    // The badge follows the file name directly, so its own left margin is the only thing
+    // keeping it off the text. GitHub's own controls in that row use ml-2, so 8px matches.
+    "margin-left:8px",
+    "margin-right:2px",
     "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif",
     "vertical-align:middle",
     "cursor:default",

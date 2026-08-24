@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { fetchFiles, MAX_FILES } from "../src/github_api.js";
+import { fetchFiles, apiUrl, MAX_FILES } from "../src/github_api.js";
 import type { GitHubPage } from "../src/page.js";
 
 const PR: GitHubPage = { kind: "pr", owner: "o", repo: "r", ref: "12", path: "/o/r/pull/12" };
@@ -142,5 +142,34 @@ describe("fetchFiles — failures", () => {
 
     expect(await fetchFiles(PR)).toEqual({ error: "network" });
     expect(await fetchFiles(COMMIT)).toEqual({ error: "network" });
+  });
+});
+
+describe("credential safety", () => {
+  it("only ever calls api.github.com", async () => {
+    const spy = stubFetch(() => ok([]));
+
+    await fetchFiles(PR, "ghp_secret");
+    await fetchFiles(COMMIT, "ghp_secret");
+
+    for (const [url] of spy.mock.calls) {
+      expect(new URL(String(url)).origin).toBe("https://api.github.com");
+    }
+  });
+
+  it("refuses to build a URL that leaves that origin", () => {
+    // Today's call sites cannot reach these — every path is a literal starting "/repos/" —
+    // which is the point: the guard is there for the change that comes later
+    expect(() => apiUrl("//evil.example/repos/o/r")).toThrow(/refusing to send credentials/);
+    expect(() => apiUrl("https://evil.example/repos/o/r")).toThrow(/refusing to send credentials/);
+    expect(() => apiUrl("http://api.github.com/repos/o/r")).toThrow(/refusing to send credentials/);
+  });
+
+  it("allows ordinary paths, traversal and all", () => {
+    expect(apiUrl("/repos/o/r/pulls/12/files?per_page=100")).toBe(
+      "https://api.github.com/repos/o/r/pulls/12/files?per_page=100"
+    );
+    // ".." normalises back onto the same origin, so it is not a leak and is not refused
+    expect(apiUrl("/repos/../x")).toBe("https://api.github.com/x");
   });
 });

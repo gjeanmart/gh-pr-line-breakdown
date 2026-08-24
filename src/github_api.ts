@@ -16,6 +16,24 @@ export type ApiResult =
   | { files: FileEntry[]; truncated?: boolean; rate?: RateLimit }
   | { error: ApiError; rate?: RateLimit };
 
+const API_ORIGIN = "https://api.github.com";
+
+/**
+ * Build an API URL, refusing anything that would leave GitHub's API origin.
+ *
+ * Requests from here carry the user's personal access token in an Authorization header. The
+ * owner, repo and ref come from the page URL and are already constrained by page.ts, so this
+ * guards against a future mistake rather than a present one — which is when a token leak is
+ * cheapest to prevent.
+ */
+export function apiUrl(path: string): string {
+  const url = new URL(path, API_ORIGIN);
+  if (url.origin !== API_ORIGIN) {
+    throw new Error(`refusing to send credentials to ${url.origin}`);
+  }
+  return url.toString();
+}
+
 // 100 files per page, so 30 pages is a hard 3,000-file ceiling.
 const PER_PAGE = 100;
 const MAX_PAGES = 30;
@@ -75,9 +93,9 @@ async function fetchPrFiles(page: GitHubPage, token?: string): Promise<ApiResult
   let rate: RateLimit | undefined;
 
   for (let pageNum = 1; pageNum <= MAX_PAGES; pageNum++) {
-    const url = `https://api.github.com/repos/${owner}/${repo}/pulls/${ref}/files?per_page=${PER_PAGE}&page=${pageNum}`;
     let res: Response;
     try {
+      const url = apiUrl(`/repos/${owner}/${repo}/pulls/${ref}/files?per_page=${PER_PAGE}&page=${pageNum}`);
       res = await fetch(url, { headers });
     } catch {
       return { error: "network" };
@@ -101,10 +119,9 @@ async function fetchPrFiles(page: GitHubPage, token?: string): Promise<ApiResult
 // A commit's files come back in the commit payload itself — a single request.
 async function fetchCommitFiles(page: GitHubPage, token?: string): Promise<ApiResult> {
   const { owner, repo, ref } = page;
-  const url = `https://api.github.com/repos/${owner}/${repo}/commits/${ref}`;
-
   let res: Response;
   try {
+    const url = apiUrl(`/repos/${owner}/${repo}/commits/${ref}`);
     res = await fetch(url, { headers: buildHeaders(token) });
   } catch {
     return { error: "network" };

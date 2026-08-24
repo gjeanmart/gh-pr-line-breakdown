@@ -1,0 +1,28 @@
+version: 2
+
+updates:
+  # Actions are pinned to commit SHAs in the workflows, which means they cannot drift — and
+  # cannot be updated by hand either without going and looking. This is what keeps them current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore"
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # Everything here is a build-time dependency, so one grouped PR a week is easier to
+    # review than five. Majors stay separate: vite and vitest majors have moved this project
+    # before, and those deserve their own PR.
+    groups:
+      dev-dependencies:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "chore"

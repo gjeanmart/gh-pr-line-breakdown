@@ -9,13 +9,15 @@ A Chrome extension that shows a line-count breakdown widget on GitHub PR pages, 
 
 ## How it works
 
-The extension fetches the list of changed files from the GitHub REST API and classifies each file against your configured categories using glob patterns. The results appear as a popup anchored to the native `+N -N ████` diffstat — point at that diffstat to open it. It works on every PR tab (Conversation, Commits, Checks, Files Changed) and on commit pages (`/commit/{sha}`), and it follows your GitHub theme, including the dimmed and high-contrast variants.
+The extension fetches the list of changed files from the GitHub REST API and classifies each file against your configured categories using glob patterns. The results appear as a popup anchored to the native `+N -N ████` diffstat — point at that diffstat to open it, or **click it to pin the popup open** (click again, or press Escape, to close). It works on every PR tab (Conversation, Commits, Checks, Files Changed) and on commit pages (`/commit/{sha}`), and it follows your GitHub theme, including the dimmed and high-contrast variants.
 
 The popup header shows the total line and file counts across all categories. Each category row shows its file count, a proportional bar chart, added/removed line counts, a percentage of total lines changed, and an eye icon to collapse/expand all matching files in the Files Changed tab.
 
 On the Files Changed tab, `+N −N` line counts are also injected directly into the file tree sidebar next to every file and folder. Folder counts roll up all files underneath them.
 
-If the breakdown can't be loaded — a rate limit, or a private repo without a token — a small red dot appears on the diffstat; hover it for the reason.
+The popup footer has a **Copy markdown** button, which puts the breakdown on your clipboard as a table ready to paste into a PR description or a review comment.
+
+If the breakdown can't be loaded — a rate limit, or a private repo without a token — a small red dot appears on the diffstat; hover it for the reason, and for a link straight to the token field. Without a token GitHub allows 60 API calls an hour, so when you get close the footer starts telling you how many are left and when the hour resets.
 
 Files are classified into categories evaluated in order — the first matching glob pattern wins. Default categories:
 
@@ -42,10 +44,8 @@ By default, unauthenticated API calls are limited to **60 requests/hour**. For p
 
 ## Planned features
 
-- **Pin the breakdown open** — click the diffstat to keep the popup open instead of holding the cursor still, click again to release
 - **Sort categories by size** — read the breakdown biggest-first instead of in matching order (category order is matching precedence, which is rarely the order you want to read)
 - **Filter shortcuts** — "show only this category" and "show/hide everything" from the widget, so driving the eye icons on a large PR takes one click rather than eight
-- **Copy the breakdown as markdown** — one button, for pasting into a PR description or a review comment
 - **Filter from the toolbar popup** — the popup shows the same numbers as the widget but cannot act on them yet
 - **Firefox support** — publish to the Firefox Add-ons Marketplace (AMO)
 - **Category pills on PR list pages** — inject mini colored category pills on GitHub's PR list view so you can see the file-type composition of a PR before opening it

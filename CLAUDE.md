@@ -21,6 +21,9 @@ gh-pr-line-breakdown/
 │   ├── anchor.ts           # locates GitHub's +N −N diffstat element (DOM-only, testable)
 │   ├── collapse.ts         # drives GitHub's own per-file collapse control
 │   ├── color.ts            # category colour safety + readable badge text (pure)
+│   ├── html.ts             # escapeHtml / escapeAttr, shared by all three UIs (pure)
+│   ├── summary.ts          # totals, percentages, bar widths, markdown export (pure)
+│   ├── background.ts       # service worker: opens the options page on request
 │   ├── badges.ts           # injects colored category pill badges into file diff headers
 │   ├── file_tree.ts        # injects +N -N line counts into the PR file tree sidebar
 │   ├── matcher.ts          # wildcard category matching (custom globMatch, no deps)
@@ -44,7 +47,10 @@ gh-pr-line-breakdown/
 │   ├── page.test.ts        # URL parsing (pure, no DOM)
 │   ├── filter.test.ts      # end-to-end: badges + collapse over captured markup
 │   ├── color.test.ts       # colour sanitising + contrast (pure)
-│   ├── github_api.test.ts  # pagination, truncation, error mapping (stubbed fetch)
+│   ├── github_api.test.ts  # pagination, truncation, quota, error mapping (stubbed fetch)
+│   ├── config.test.ts      # fallback normalisation + import validation (pure)
+│   ├── summary.test.ts     # breakdown arithmetic, markdown, tree rollup, escaping (pure)
+│   ├── file_tree.test.ts   # jsdom tests for the sidebar counts
 │   └── fixtures/           # captured GitHub markup (PR header, commit header)
 ├── package.json
 ├── tsconfig.json
@@ -327,6 +333,62 @@ pushes the count to the right edge of the row.
 
 `clearTreeCounts()` removes all injected spans when navigating to a new PR.
 
+### The widget's context object
+
+`renderLoadingState`, `renderHeaderIcon` and `renderError` each take a `WidgetContext` rather
+than a parameter list, which had reached four and was still growing:
+
+```ts
+type WidgetContext = {
+  truncated?: boolean;              // the API capped the file list
+  rate?: RateLimit | null;          // what the API last said about our quota
+  hasToken?: boolean;               // decides whether quota is worth mentioning
+  onOpenSettings?: () => void;      // content script owns the extension APIs
+  onToggleCategory?: (name: string, visible: boolean) => void;
+};
+```
+
+Callbacks live in the context because `widget.ts` deliberately touches no `chrome.*` API — it
+stays DOM-only and therefore testable under jsdom.
+
+### Rate limit surfacing
+
+Every GitHub response carries `X-RateLimit-Remaining` / `-Limit` / `-Reset`;
+`github_api.ts` returns them as `RateLimit` from successful **and** failed requests, since a
+rate-limited 403 is exactly when the reset time matters.
+
+- The footer shows the remaining count only when it is **below 15 and no token is set** — a
+  token raises the ceiling from 60/hour to 5,000 and makes the number uninteresting.
+- A `rate_limit` error appends the reset time.
+- The three token-fixable errors (`rate_limit`, `auth_required`, `not_accessible`) render a
+  button to the options page, labelled "Add a token" or "Check your token" depending on
+  `hasToken` — being sent to a field you already filled in is its own dead end.
+
+### Pinning and copying
+
+Clicking the anchor toggles `pinned`; a pinned popup ignores `mouseleave` and takes an accent
+border, and Escape releases it. The anchor gets a `title` so the interaction is discoverable.
+Both the pinned class and the copy button are re-applied after every render, since
+`setContent` replaces the popup's contents wholesale.
+
+`toMarkdown()` in `summary.ts` renders non-empty categories plus a bold total row, and appends
+a note when the file list was capped. Clipboard writes need a focused document, so the button
+reports "Copy failed" rather than failing silently.
+
+### Skipping work there is none of
+
+Three cheap exits, all added once the pass itself was cheap enough that the sweeps dominated:
+
+- `injectBadges` returns immediately when `fileHeaderMap` covers every file **and** the page
+  already has that many badges — one query instead of four document sweeps and a hash pass.
+  Both conditions matter: badges prove the page is annotated, the map proves we still know
+  which header belongs to which file. A re-rendered header takes our badge with it, so the
+  count drops and the next pass does the work.
+- `injectTreeCounts` returns when every tree row already carries a count.
+- The `MutationObserver` callback still detects SPA navigation on every page, but only
+  schedules a pass when `parseGitHubPage` recognises the URL — a dashboard no longer wakes a
+  timer every 300 ms to discover there is nothing to annotate.
+
 ### Theming
 
 Two different mechanisms, because the surfaces live in two different worlds.
@@ -412,11 +474,14 @@ When the PR path changes, the API cache is cleared so the new PR's data is fetch
 
 ## Build system
 
-`npm run build` runs `node build.mjs`, which performs **two separate Vite builds**:
+`npm run build` runs `node build.mjs`, which performs **three separate Vite builds**:
 
 1. **Content script** → `dist/content_script.js` — IIFE format, fully self-contained
-   (~30 kB). Must be IIFE so Chrome can inject it as a standalone script.
-2. **Popup + options** → `dist/popup/popup.js`, `dist/options/options.js` — ES modules,
+   (~31 kB). Must be IIFE so Chrome can inject it as a standalone script.
+2. **Service worker** → `dist/background.js` — IIFE, tiny. Its only job is answering
+   `{ type: "openOptions" }`, since `chrome.runtime.openOptionsPage` is not available to
+   content scripts and the widget needs to offer it.
+3. **Popup + options** → `dist/popup/popup.js`, `dist/options/options.js` — ES modules,
    code-split by Rollup.
 
 Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are copied to `dist/`.
@@ -430,7 +495,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 npm install
 npm run build          # outputs to dist/
-npm run test           # vitest unit tests (98 tests)
+npm run test           # vitest unit tests (161 tests)
 ```
 
 To load in Chrome:
@@ -532,31 +597,10 @@ MutationObserver, GitHub API for file data.
 - [ ] **Gitea support** — extend to Gitea/Forgejo instances (self-hosted); add a `GiteaProvider` using `GET /repos/{owner}/{repo}/pulls/{index}/files`. User configures instance URLs in the Settings tab.
 - [x] **Commit page support** — extend the extension to work on GitHub commit pages (`github.com/{owner}/{repo}/commit/{sha}`); fetch changed files via `GET /repos/{owner}/{repo}/commits/{sha}` and render the same breakdown widget and file badges as on PR pages.
 
-### Known issues, deferred from v0.1.6
-
-Found in the v0.1.6 review; all real, none visible to a user in normal use — which is why
-they were left out of that release rather than rushed into it.
-
-**Bugs**
-
-- [ ] A config can lose its fallback category with no way back: the options UI shows the
-      `fallback` badge but cannot set or move it, and import does not require one. Without a
-      fallback, `classifyFile` silently uses whichever category is last (`matcher.ts`).
-- [ ] `showToast` never clears its timeout, so rapid saves stack timers (`options.ts`).
-
-**Performance**
-
-- [ ] Every pass runs four document-wide `querySelectorAll` calls in `injectBadges` plus one
-      over all tree items, whether or not anything changed. Scope them to the diff container
-      and skip the pass when the injected counts already match.
-- [ ] The `MutationObserver` is attached on every `github.com` page and never disconnects, so
-      on a non-PR page each DOM change still schedules a timer that wakes up and returns.
+### Known issues
 
 **Coherence**
 
-- [ ] `escapeHtml` is defined three times (`widget.ts`, `popup.ts`, `options.ts`), and the
-      totals/percentage/file-label arithmetic exists twice — in `widget.ts` and `popup.ts`,
-      already drifting in wording. Wants a shared `html.ts` and a shared summary function.
 - [ ] Types are scattered: `Category`/`Config` in `config.ts`, `FileEntry`/`CategoryStats` in
       `matcher.ts`, so `github_api.ts` imports its file type from the matcher.
 - [ ] `badges.ts` still holds three jobs — badge injection, the filename → header map, and the
@@ -571,6 +615,11 @@ they were left out of that release rather than rushed into it.
 
 - Renames are classified by their new path only. The API returns `previous_filename`, so a
   file moved from `src/` into `tests/` counts entirely as Tests. Almost always what you want.
+
+Fixed in v0.1.7: the fallback-category trap (normalised on load, save and import), the
+stacked toast timer, document-wide sweeps on every pass, the observer scheduling work on
+pages we ignore, three copies of `escapeHtml`, duplicated summary arithmetic, and the
+untested folder rollup and import validator.
 
 ---
 

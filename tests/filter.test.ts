@@ -74,6 +74,22 @@ describe("category filter over captured commit markup", () => {
     expect(badges.every((b) => b.closest('[class*="diff-file-header"]') !== null)).toBe(true);
   });
 
+  it("does no work on a second pass over an unchanged diff", async () => {
+    expect(await injectBadges(FILES, CATEGORIES)).toBe(2);
+
+    // The content script re-runs after every settled batch of mutations. This pass used to
+    // sweep the document four times and hash every path to discover it had nothing to do.
+    expect(await injectBadges(FILES, CATEGORIES)).toBe(0);
+    expect(document.querySelectorAll(".gh-breakdown-badge")).toHaveLength(2);
+  });
+
+  it("re-badges after GitHub takes our badges away with a header", async () => {
+    await injectBadges(FILES, CATEGORIES);
+    document.body.innerHTML = COMMIT_PAGE;
+
+    expect(await injectBadges(FILES, CATEGORIES)).toBe(2);
+  });
+
   it("hides a category by clicking each file's collapse control", async () => {
     await injectBadges(FILES, CATEGORIES);
     const clicks = wireToggles(["CLAUDE.md", "README.md"]);

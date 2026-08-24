@@ -28,10 +28,14 @@ export function injectTreeCounts(files: FileEntry[]): number {
   const treeRoot = findFileTree();
   if (!treeRoot) return 0;
 
+  const items = Array.from(treeRoot.querySelectorAll<HTMLElement>('[role="treeitem"]'));
+  // Already counted every row we can count — nothing to do until the tree changes
+  if (treeRoot.querySelectorAll(`.${TREE_COUNT_CLASS}`).length >= items.length) return 0;
+
   const { fileMap, folderMap } = buildMaps(files);
   let injected = 0;
 
-  for (const item of Array.from(treeRoot.querySelectorAll<HTMLElement>('[role="treeitem"]'))) {
+  for (const item of items) {
     if (item.querySelector(`.${TREE_COUNT_CLASS}`)) continue;
 
     const path = item.id;

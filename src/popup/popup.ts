@@ -2,14 +2,15 @@ import { buildBreakdown } from "../matcher.js";
 import type { Category } from "../config.js";
 import type { FileEntry } from "../matcher.js";
 import { safeCssColor } from "../color.js";
+import { escapeAttr, escapeHtml } from "../html.js";
+import { summarize } from "../summary.js";
 import { parseGitHubUrl } from "../page.js";
 
 const content = document.getElementById("content")!;
-let hideEmpty = true;
 
-function escapeHtml(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
+const TRUNCATION_NOTE =
+  "This PR has more files than the GitHub API returns (3,000 max), so these totals are partial.";
+let hideEmpty = true;
 
 function showMessage(text: string, loading = false): void {
   content.innerHTML = loading
@@ -18,48 +19,37 @@ function showMessage(text: string, loading = false): void {
 }
 
 function renderBreakdown(files: FileEntry[], categories: Category[], truncated: boolean): void {
-  const breakdown = buildBreakdown(files, categories);
+  const summary = summarize(buildBreakdown(files, categories), categories);
 
-  const grandTotal = categories.reduce((s, c) => s + (breakdown.get(c)?.total ?? 0), 0);
-  const totalAdded = categories.reduce((s, c) => s + (breakdown.get(c)?.added ?? 0), 0);
-  const totalRemoved = categories.reduce((s, c) => s + (breakdown.get(c)?.removed ?? 0), 0);
-  const totalFiles = categories.reduce((s, c) => s + (breakdown.get(c)?.files ?? 0), 0);
-
-  const rows = categories.map((cat) => {
-    const stats = breakdown.get(cat)!;
-    const pct = grandTotal > 0 ? Math.round((stats.total / grandTotal) * 100) : 0;
-    const fileLabel = stats.files === 1 ? "1 file" : `${stats.files.toLocaleString()} files`;
-    const emptyClass = stats.total === 0 ? " row--empty" : "";
-    return `
-      <div class="row${emptyClass}">
+  const rows = summary.rows
+    .map(({ category, stats, percent, fileLabel, isEmpty }) => `
+      <div class="row${isEmpty ? " row--empty" : ""}">
         <div class="cat-info">
-          <span class="cat-dot" style="background:${safeCssColor(cat.color)}"></span>
+          <span class="cat-dot" style="background:${safeCssColor(category.color)}"></span>
           <div>
-            <span class="cat-name">${escapeHtml(cat.name)}</span>
+            <span class="cat-name">${escapeHtml(category.name)}</span>
             <span class="cat-files">${fileLabel}</span>
           </div>
         </div>
         <span class="stat stat-added">+${stats.added.toLocaleString()}</span>
         <span class="stat stat-removed">\u2212${stats.removed.toLocaleString()}</span>
-        <span class="pct">${pct}%</span>
-      </div>`;
-  }).join("");
+        <span class="pct">${percent}%</span>
+      </div>`)
+    .join("");
 
-  const emptyCount = categories.filter((cat) => (breakdown.get(cat)?.total ?? 0) === 0).length;
-  const footer = emptyCount > 0
-    ? `<div class="rows-footer"><button class="toggle-empty">${hideEmpty ? `Show ${emptyCount} empty` : "Hide empty"}</button></div>`
-    : "";
-
-  const filesLabel = `${truncated ? "first " : ""}${totalFiles === 1 ? "1 file" : `${totalFiles.toLocaleString()} files`}`;
+  const footer =
+    summary.emptyCount > 0
+      ? `<div class="rows-footer"><button class="toggle-empty">${hideEmpty ? `Show ${summary.emptyCount} empty` : "Hide empty"}</button></div>`
+      : "";
 
   content.innerHTML = `
     <div class="breakdown-header">
-      <span class="bh-lines">${grandTotal.toLocaleString()} lines</span>
+      <span class="bh-lines">${summary.totalLines.toLocaleString()} lines</span>
       <span class="bh-sep">&middot;</span>
-      <span class="bh-files">${filesLabel}</span>
+      <span class="bh-files"${truncated ? ` title="${escapeAttr(TRUNCATION_NOTE)}"` : ""}>${truncated ? "first " : ""}${summary.filesLabel}</span>
       <span class="bh-spacer"></span>
-      <span class="bh-added">+${totalAdded.toLocaleString()}</span>
-      <span class="bh-removed">\u2212${totalRemoved.toLocaleString()}</span>
+      <span class="bh-added">+${summary.totalAdded.toLocaleString()}</span>
+      <span class="bh-removed">\u2212${summary.totalRemoved.toLocaleString()}</span>
     </div>
     <div class="rows${hideEmpty ? " hide-empty" : ""}">${rows}</div>
     ${footer}`;

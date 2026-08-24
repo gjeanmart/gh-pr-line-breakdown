@@ -1,5 +1,13 @@
-import { loadConfig, saveConfig, DEFAULT_CONFIG, type Category, type Config } from "../config.js";
+import {
+  loadConfig,
+  saveConfig,
+  DEFAULT_CONFIG,
+  parseImportedCategories,
+  type Category,
+  type Config,
+} from "../config.js";
 import { safeCssColor } from "../color.js";
+import { escapeAttr, escapeHtml } from "../html.js";
 
 // The palette the "add category" button starts from, and the fallback for a colour that is
 // not a plain hex value.
@@ -165,58 +173,39 @@ function onImport(e: Event): void {
 
   const reader = new FileReader();
   reader.onload = () => {
-    try {
-      const parsed = JSON.parse(reader.result as string);
-      if (
-        !parsed ||
-        typeof parsed !== "object" ||
-        !Array.isArray(parsed.categories) ||
-        parsed.categories.some(
-          (c: unknown) =>
-            typeof c !== "object" ||
-            c === null ||
-            typeof (c as Record<string, unknown>).name !== "string" ||
-            !Array.isArray((c as Record<string, unknown>).patterns)
-        )
-      ) {
-        showToast("Invalid config file.");
-        return;
-      }
-      readFormIntoConfig();
-      config.categories = parsed.categories as Category[];
-      renderCategories();
-      // Switch to Categories tab so the user sees the result
-      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
-      document.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
-      document.querySelector<HTMLButtonElement>('[data-tab="categories"]')!.classList.add("active");
-      document.getElementById("tab-categories")!.classList.remove("hidden");
-      showToast("Config imported. Review and save.");
-    } catch {
-      showToast("Failed to parse JSON file.");
-    } finally {
+    const imported = parseImportedCategories(reader.result as string);
+    if (!imported) {
+      showToast("That does not look like a category config file.");
       (e.target as HTMLInputElement).value = "";
+      return;
     }
+
+    readFormIntoConfig();
+    config.categories = imported;
+    renderCategories();
+
+    // Switch to Categories tab so the user sees the result
+    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.add("hidden"));
+    document.querySelector<HTMLButtonElement>('[data-tab="categories"]')!.classList.add("active");
+    document.getElementById("tab-categories")!.classList.remove("hidden");
+    showToast("Config imported. Review and save.");
+    (e.target as HTMLInputElement).value = "";
   };
   reader.readAsText(file);
 }
+
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
 function showToast(message: string): void {
   const toast = document.getElementById("toast")!;
   toast.textContent = message;
   toast.classList.add("visible");
-  setTimeout(() => toast.classList.remove("visible"), 2500);
-}
-
-function escapeAttr(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function escapeHtml(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  if (toastTimer !== null) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.classList.remove("visible");
+    toastTimer = null;
+  }, 2500);
 }
 
 document.getElementById("footer-version")!.textContent =

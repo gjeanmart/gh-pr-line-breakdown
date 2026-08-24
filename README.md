@@ -73,15 +73,15 @@ The easiest way to get started is to install directly from the Chrome Web Store:
 **Prerequisites**
 
 - [Node.js](https://nodejs.org/) 18+
-- npm
+- pnpm
 
 **Quick start**
 
 ```bash
 git clone https://github.com/gjeanmart/github-line-breakdown-extension.git
 cd github-line-breakdown-extension
-npm install
-npm run build   # outputs to dist/
+ppnpm install
+ppnpm run build   # outputs to dist/
 ```
 
 Then load the unpacked extension in Chrome:
@@ -93,7 +93,7 @@ Then load the unpacked extension in Chrome:
 **Run tests**
 
 ```bash
-npm run test    # vitest unit tests
+pnpm test       # vitest unit tests
 ```
 
 ## Releasing a new version
@@ -105,7 +105,7 @@ Releases are fully automated via GitHub Actions on version tags.
 1. Make sure all changes are merged into `main` and CI is green
 2. Run the release script:
    ```bash
-   npm run release 1.1.0
+   pnpm run release 1.1.0
    ```
    This will run tests, bump the version in `package.json` and `manifest.json`, commit, tag, and push everything to `main`.
 

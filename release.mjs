@@ -27,7 +27,7 @@ if (status) {
 
 // 2. Run tests
 console.log('\n▶ Running tests…');
-run('npm test');
+run('pnpm test');
 
 // 3. Bump versions in package.json and manifest.json
 console.log(`\n▶ Bumping version to ${version}…`);

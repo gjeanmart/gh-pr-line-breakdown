@@ -7,6 +7,7 @@ import {
   type Config,
 } from "../config.js";
 import { safeCssColor } from "../color.js";
+import { fetchRateLimit } from "../github_api.js";
 import { escapeAttr, escapeHtml } from "../html.js";
 
 // The palette the "add category" button starts from, and the fallback for a colour that is
@@ -30,6 +31,8 @@ async function init(): Promise<void> {
       document.getElementById(`tab-${btn.dataset.tab}`)!.classList.remove("hidden");
     });
   });
+
+  void showRateLimit();
 
   document.getElementById("btn-save")!.addEventListener("click", onSaveCategories);
   document.getElementById("btn-reset")!.addEventListener("click", onReset);
@@ -138,6 +141,38 @@ async function onSaveSettings(): Promise<void> {
   config.githubToken = token || undefined;
   await saveConfig(config);
   showToast("Settings saved.");
+  // Re-check straight away: seeing the ceiling jump from 60 to 5,000 is the clearest possible
+  // confirmation that the token you just pasted actually works.
+  void showRateLimit();
+}
+
+const QUOTA_MESSAGES: Record<string, string> = {
+  auth_required: "That token was rejected by GitHub — check it has not expired.",
+  rate_limit: "Rate limit reached. It resets within the hour.",
+  not_accessible: "GitHub refused the request with that token.",
+  network: "Could not reach the GitHub API.",
+  unknown: "Could not read your API quota.",
+};
+
+async function showRateLimit(): Promise<void> {
+  const readout = document.getElementById("quota-readout")!;
+  readout.textContent = "Checking your API quota…";
+  readout.classList.remove("quota-readout--out");
+
+  const result = await fetchRateLimit(config.githubToken);
+
+  if ("error" in result) {
+    readout.textContent = QUOTA_MESSAGES[result.error] ?? QUOTA_MESSAGES["unknown"];
+    return;
+  }
+
+  const { remaining, limit, resetAt } = result.rate;
+  const resets = resetAt
+    ? ` · resets ${new Date(resetAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+    : "";
+  const ceiling = limit > 0 ? ` of ${limit.toLocaleString()}` : "";
+  readout.textContent = `${remaining.toLocaleString()}${ceiling} API requests left this hour${resets}`;
+  readout.classList.toggle("quota-readout--out", remaining === 0);
 }
 
 function onReset(): void {

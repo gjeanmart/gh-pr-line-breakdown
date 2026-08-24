@@ -19,11 +19,12 @@ function showMessage(text: string, loading = false): void {
     : `<p class="message">${escapeHtml(text)}</p>`;
 }
 
-// Unlike the widget's footer hint, which only speaks up when the number is low and
-// actionable, the popup always shows it: this is the diagnostic surface, and a token holder
-// otherwise has no way to see their quota at all.
+// Same rule as the widget: a warning, not a readout. The live number lives in the settings
+// page, which asks GitHub for it directly.
+const LOW_QUOTA = 15;
+
 function renderQuota(rate: RateLimit | null | undefined, hasToken: boolean): string {
-  if (!rate) return "";
+  if (!rate || rate.remaining > LOW_QUOTA) return "";
 
   const limit = rate.limit > 0 ? ` of ${rate.limit.toLocaleString()}` : "";
   const resets = rate.resetAt

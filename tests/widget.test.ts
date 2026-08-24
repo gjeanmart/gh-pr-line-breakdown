@@ -202,12 +202,23 @@ describe("quota and token guidance", () => {
     expect(shadow().querySelector(".quota")).toBeNull();
   });
 
-  it("keeps quiet when a token is configured, whatever the number", async () => {
+  it("warns a token holder too — 15 of 5,000 is worse news than 15 of 60", async () => {
     const widget = await freshWidget();
 
     renderRows(widget, { rate: rate(2), hasToken: true, onOpenSettings: () => {} });
 
-    expect(shadow().querySelector(".quota")).toBeNull();
+    const quota = shadow().querySelector(".quota")!;
+    expect(quota.textContent).toContain("2 API calls left");
+    // ...but suggesting a token to someone who has one would be nonsense
+    expect(quota.textContent).not.toContain("add a token");
+  });
+
+  it("suggests a token when there is none", async () => {
+    const widget = await freshWidget();
+
+    renderRows(widget, { rate: rate(2), hasToken: false, onOpenSettings: () => {} });
+
+    expect(shadow().querySelector(".quota")!.textContent).toContain("add a token");
   });
 
   it("reads correctly for a single remaining call", async () => {

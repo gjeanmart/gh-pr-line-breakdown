@@ -362,8 +362,16 @@ Every GitHub response carries `X-RateLimit-Remaining` / `-Limit` / `-Reset`;
 `github_api.ts` returns them as `RateLimit` from successful **and** failed requests, since a
 rate-limited 403 is exactly when the reset time matters.
 
-- The footer shows the remaining count only when it is **below 15 and no token is set** — a
-  token raises the ceiling from 60/hour to 5,000 and makes the number uninteresting.
+There are two different jobs here, and they belong in different places:
+
+- **A warning**, in the widget footer and the popup: shown only when fewer than 15 calls
+  remain, whether or not a token is set — being down to 15 of 5,000 is worse news than 15 of
+  60. Only the "add a token" suffix is conditional on not having one.
+- **A readout**, in the options page: `fetchRateLimit()` asks `GET /rate_limit`, the one
+  endpoint that does not count against the limit, so the number can be shown on load and
+  again after saving a token — watching the ceiling jump from 60 to 5,000 is the clearest
+  confirmation that the token you just pasted works. It also needs no PR open, unlike reading
+  the headers off a files request.
 - A `rate_limit` error appends the reset time.
 - The three token-fixable errors (`rate_limit`, `auth_required`, `not_accessible`) render a
   button to the options page, labelled "Add a token" or "Check your token" depending on

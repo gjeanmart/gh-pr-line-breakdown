@@ -17,7 +17,7 @@ On the Files Changed tab, `+N −N` line counts are also injected directly into 
 
 The popup footer has a **Copy markdown** button, which puts the breakdown on your clipboard as a table ready to paste into a PR description or a review comment.
 
-If the breakdown can't be loaded — a rate limit, or a private repo without a token — a small red dot appears on the diffstat; hover it for the reason, and for a link straight to the token field. Without a token GitHub allows 60 API calls an hour, so when you get close the footer starts telling you how many are left and when the hour resets.
+If the breakdown can't be loaded — a rate limit, or a private repo without a token — a small red dot appears on the diffstat; hover it for the reason, and for a link straight to the token field. Without a token GitHub allows 60 API calls an hour, so when you get close the widget and popup start telling you how many are left and when the hour resets. The **Settings** tab shows the number at any time, along with your ceiling — check it after adding a token to confirm the token works.
 
 Files are classified into categories evaluated in order — the first matching glob pattern wins. Default categories:
 

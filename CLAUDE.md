@@ -61,6 +61,11 @@ gh-pr-line-breakdown/
 
 ## Tech stack
 
+- **pnpm** as the package manager, pinned via `packageManager`. Chosen for one feature above
+  all: pnpm 10 refuses to run a dependency's install scripts unless it is named in
+  `pnpm.onlyBuiltDependencies`. Only `esbuild` is listed, because it is the only dependency
+  here with an install script and needs it to link its platform binary. npm's equivalent
+  (`ignore-scripts`) is all-or-nothing, and turning it on would break esbuild.
 - **TypeScript** throughout
 - **Vite 5** for bundling (outputs to `dist/`), build driven by `build.mjs`
 - **vitest** for unit tests — `jsdom` for the DOM-level anchor tests, opted into
@@ -474,7 +479,7 @@ When the PR path changes, the API cache is cleared so the new PR's data is fetch
 
 ## Build system
 
-`npm run build` runs `node build.mjs`, which performs **three separate Vite builds**:
+`pnpm run build` runs `node build.mjs`, which performs **three separate Vite builds**:
 
 1. **Content script** → `dist/content_script.js` — IIFE format, fully self-contained
    (~31 kB). Must be IIFE so Chrome can inject it as a standalone script.
@@ -493,9 +498,9 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ## Build & local dev
 
 ```bash
-npm install
-npm run build          # outputs to dist/
-npm run test           # vitest unit tests (161 tests)
+pnpm install
+pnpm run build         # outputs to dist/
+pnpm test              # vitest unit tests (170 tests)
 ```
 
 To load in Chrome:
@@ -512,7 +517,7 @@ To load in Chrome:
 
 Runs on every push to `main` and on every PR:
 
-- `npm ci` → `npm test` → `npm run build`
+- `pnpm install --frozen-lockfile` → `pnpm audit` → typecheck → `pnpm test` → `pnpm run build`
 
 ### Release workflow (`.github/workflows/release.yml`)
 
@@ -520,7 +525,7 @@ Triggered by pushing a `v*` tag. Steps:
 
 1. Run tests
 2. Strip `v` prefix from tag → patch `package.json` and `manifest.json` with the semver version
-3. `npm run build`
+3. `pnpm run build`
 4. `cd dist && zip -r ../gh-pr-line-breakdown-vX.Y.Z.zip .`
 5. Create GitHub Release with the zip + auto-generated release notes (`softprops/action-gh-release`)
 6. If `CHROME_EXTENSION_ID` secret is set: call the CWS Publish API (OAuth2 token exchange → upload zip → publish)
@@ -528,7 +533,7 @@ Triggered by pushing a `v*` tag. Steps:
 ### How to cut a release
 
 ```bash
-npm run release X.Y.Z
+pnpm run release X.Y.Z
 ```
 
 `release.mjs` will: verify a clean working tree → run tests → bump `package.json`

@@ -6,12 +6,17 @@
   "engines": {
     "node": ">=22"
   },
-  "packageManager": "npm@11.6.2",
+  "packageManager": "pnpm@10.30.3",
   "scripts": {
     "build": "node build.mjs",
     "test": "vitest run",
     "dev": "node --watch build.mjs",
     "release": "node release.mjs"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   },
   "devDependencies": {
     "@types/chrome": "^0.2.7",

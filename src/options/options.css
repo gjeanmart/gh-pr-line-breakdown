@@ -360,3 +360,12 @@ textarea:focus {
   box-shadow: 0 4px 16px rgba(0,0,0,0.2);
 }
 .toast.visible { display: block; }
+
+/* Live API quota, under the token field — asking GitHub costs nothing, /rate_limit is the one
+   endpoint that does not count against the limit. */
+.quota-readout {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.quota-readout--out { color: var(--danger); }

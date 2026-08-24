@@ -39,7 +39,8 @@ let pinned = false;
 let lastSummary: Summary | null = null;
 
 // Unauthenticated calls are capped at 60 an hour and one large PR can cost 30, so the number
-// only becomes interesting once it is low enough to matter.
+// only becomes interesting once it is low enough to matter. It is a warning here, not a
+// readout — the settings page shows the number whenever anyone wants to look at it.
 const LOW_QUOTA = 15;
 
 // The errors a token can actually do something about
@@ -138,18 +139,20 @@ function buildRows(
   `;
 }
 
-// Shown only when it is actionable: no token, and few enough calls left to be a problem soon.
+// Shown only when it is actionable: few enough calls left to become a problem shortly. Being
+// down to 15 of 5,000 is worse news than 15 of 60, so having a token does not exempt you.
 function buildQuotaHint(): string {
   const rate = context.rate;
-  if (!rate || context.hasToken || rate.remaining > LOW_QUOTA) return "";
+  if (!rate || rate.remaining > LOW_QUOTA) return "";
 
   const label =
     rate.remaining === 0
       ? "No API calls left this hour"
       : `${rate.remaining} API call${rate.remaining === 1 ? "" : "s"} left this hour`;
   const suffix = rate.resetAt ? ` \u00b7 resets ${formatClockTime(rate.resetAt)}` : "";
+  const advice = context.hasToken ? "" : " \u00b7 add a token";
 
-  return `<button class="quota" title="${escapeAttr(QUOTA_NOTE)}">${label}${suffix}</button>`;
+  return `<button class="quota" title="${escapeAttr(QUOTA_NOTE)}">${label}${suffix}${advice}</button>`;
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────

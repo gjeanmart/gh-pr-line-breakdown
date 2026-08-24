@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { fetchFiles, apiUrl, MAX_FILES } from "../src/github_api.js";
+import { fetchFiles, fetchRateLimit, apiUrl, MAX_FILES } from "../src/github_api.js";
 import type { GitHubPage } from "../src/page.js";
 
 const PR: GitHubPage = { kind: "pr", owner: "o", repo: "r", ref: "12", path: "/o/r/pull/12" };
@@ -171,5 +171,49 @@ describe("credential safety", () => {
     );
     // ".." normalises back onto the same origin, so it is not a leak and is not refused
     expect(apiUrl("/repos/../x")).toBe("https://api.github.com/x");
+  });
+});
+
+describe("fetchRateLimit", () => {
+  const payload = (core: Record<string, number>) => ok({ resources: { core } });
+
+  it("reads the quota from the body", async () => {
+    stubFetch(() => payload({ limit: 5000, remaining: 4873, reset: 1800000000 }));
+
+    expect(await fetchRateLimit("ghp_secret")).toEqual({
+      rate: { remaining: 4873, limit: 5000, resetAt: 1800000000000 },
+    });
+  });
+
+  it("calls the one endpoint that does not spend quota", async () => {
+    const spy = stubFetch(() => payload({ limit: 60, remaining: 60, reset: 0 }));
+
+    await fetchRateLimit();
+
+    expect(spy.mock.calls[0][0]).toBe("https://api.github.com/rate_limit");
+  });
+
+  it("falls back to the response headers when the body is not what we expect", async () => {
+    stubFetch(
+      () =>
+        new Response(JSON.stringify({ unexpected: true }), {
+          status: 200,
+          headers: { "X-RateLimit-Remaining": "12", "X-RateLimit-Limit": "60" },
+        })
+    );
+
+    expect(await fetchRateLimit()).toEqual({ rate: { remaining: 12, limit: 60, resetAt: null } });
+  });
+
+  it("reports a rejected token rather than a number", async () => {
+    stubFetch(() => fail(401));
+
+    expect(await fetchRateLimit("expired")).toEqual({ error: "auth_required" });
+  });
+
+  it("reports an unreachable API", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new TypeError("offline"))));
+
+    expect(await fetchRateLimit()).toEqual({ error: "network" });
   });
 });

@@ -78,6 +78,41 @@ function mapFiles(raw: Array<{ filename: string; additions: number; deletions: n
 type RawFile = { filename: string; additions: number; deletions: number };
 
 /**
+ * Ask GitHub directly what the quota is. /rate_limit is the one endpoint that does not count
+ * against the limit, so the settings page can show a live number without spending one to do
+ * it — and it works with no PR open, unlike reading the headers off a files request.
+ */
+export async function fetchRateLimit(
+  token?: string
+): Promise<{ rate: RateLimit } | { error: ApiError }> {
+  let res: Response;
+  try {
+    res = await fetch(apiUrl("/rate_limit"), { headers: buildHeaders(token) });
+  } catch {
+    return { error: "network" };
+  }
+
+  if (!res.ok) return { error: classifyError(res) };
+
+  const headerRate = readRateLimit(res);
+  const body: { resources?: { core?: { limit?: number; remaining?: number; reset?: number } } } =
+    await res.json();
+  const core = body.resources?.core;
+
+  if (core && typeof core.remaining === "number") {
+    return {
+      rate: {
+        remaining: core.remaining,
+        limit: typeof core.limit === "number" ? core.limit : 0,
+        resetAt: typeof core.reset === "number" && core.reset > 0 ? core.reset * 1000 : null,
+      },
+    };
+  }
+
+  return headerRate ? { rate: headerRate } : { error: "unknown" };
+}
+
+/**
  * Fetch the changed files for a PR or a commit. Takes the parsed page rather than reading
  * window.location, so it is callable (and testable) outside a GitHub tab.
  */

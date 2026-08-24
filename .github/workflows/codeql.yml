@@ -1,0 +1,38 @@
+name: CodeQL
+
+# The extension runs on github.com with access to the page, and holds a personal access token
+# in extension storage. Static analysis is cheap insurance against the injection-shaped
+# mistakes that matter most in that position — the category-colour hole fixed in v0.1.6 was
+# exactly this shape.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Catches newly published queries against unchanged code
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze JavaScript/TypeScript
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4

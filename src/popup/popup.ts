@@ -5,6 +5,7 @@ import { safeCssColor } from "../color.js";
 import { escapeAttr, escapeHtml } from "../html.js";
 import { summarize, toMarkdown } from "../summary.js";
 import { parseGitHubUrl } from "../page.js";
+import type { RateLimit } from "../github_api.js";
 
 const content = document.getElementById("content")!;
 
@@ -18,7 +19,29 @@ function showMessage(text: string, loading = false): void {
     : `<p class="message">${escapeHtml(text)}</p>`;
 }
 
-function renderBreakdown(files: FileEntry[], categories: Category[], truncated: boolean): void {
+// Unlike the widget's footer hint, which only speaks up when the number is low and
+// actionable, the popup always shows it: this is the diagnostic surface, and a token holder
+// otherwise has no way to see their quota at all.
+function renderQuota(rate: RateLimit | null | undefined, hasToken: boolean): string {
+  if (!rate) return "";
+
+  const limit = rate.limit > 0 ? ` of ${rate.limit.toLocaleString()}` : "";
+  const resets = rate.resetAt
+    ? ` · resets ${new Date(rate.resetAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+    : "";
+  const advice = !hasToken && rate.remaining <= 15 ? " · add a token to raise the limit" : "";
+  const spent = rate.remaining === 0 ? " quota-line--out" : "";
+
+  return `<div class="quota-line${spent}">API calls: ${rate.remaining.toLocaleString()}${limit} left this hour${resets}${advice}</div>`;
+}
+
+function renderBreakdown(
+  files: FileEntry[],
+  categories: Category[],
+  truncated: boolean,
+  rate?: RateLimit | null,
+  hasToken = false
+): void {
   const summary = summarize(buildBreakdown(files, categories), categories);
 
   const rows = summary.rows
@@ -53,7 +76,8 @@ function renderBreakdown(files: FileEntry[], categories: Category[], truncated: 
       <span class="bh-removed">\u2212${summary.totalRemoved.toLocaleString()}</span>
     </div>
     <div class="rows${hideEmpty ? " hide-empty" : ""}">${rows}</div>
-    ${footer}`;
+    ${footer}
+    ${renderQuota(rate, hasToken)}`;
 
   const copyButton = content.querySelector<HTMLButtonElement>(".copy-md");
   copyButton?.addEventListener("click", async () => {
@@ -91,7 +115,14 @@ async function init(): Promise<void> {
 
   showMessage("Loading\u2026", true);
 
-  let response: { status: string; files?: FileEntry[]; categories?: Category[]; truncated?: boolean };
+  let response: {
+    status: string;
+    files?: FileEntry[];
+    categories?: Category[];
+    truncated?: boolean;
+    rate?: RateLimit | null;
+    hasToken?: boolean;
+  };
   try {
     response = await chrome.tabs.sendMessage(tab.id!, { type: "getBreakdown" });
   } catch {
@@ -108,7 +139,13 @@ async function init(): Promise<void> {
     return;
   }
 
-  renderBreakdown(response.files!, response.categories!, response.truncated === true);
+  renderBreakdown(
+    response.files!,
+    response.categories!,
+    response.truncated === true,
+    response.rate,
+    response.hasToken === true
+  );
 }
 
 document.getElementById("btn-options")!.addEventListener("click", () => {

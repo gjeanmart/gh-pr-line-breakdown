@@ -370,3 +370,62 @@ describe("copy as markdown", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("the pin control", () => {
+  const pinButton = () => host().shadowRoot!.querySelector<HTMLElement>(".pin-toggle")!;
+
+  it("sits in the header, so pinning is findable without a tooltip", async () => {
+    const widget = await freshWidget();
+
+    renderRows(widget);
+
+    const button = pinButton();
+    expect(button.closest(".title")).not.toBeNull();
+    expect(button.getAttribute("aria-pressed")).toBe("false");
+    expect(button.getAttribute("aria-label")).toContain("Pin");
+    expect(button.querySelector("svg")).not.toBeNull();
+  });
+
+  it("pins from the footer button", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+
+    pinButton().click();
+    findDiffstatAnchor()!.dispatchEvent(new MouseEvent("mouseleave"));
+    vi.advanceTimersByTime(500);
+
+    expect(host().style.display).toBe("block");
+    expect(pinButton().getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("releases from the footer button", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    pinButton().click();
+
+    pinButton().click();
+
+    expect(host().style.display).toBe("none");
+    expect(pinButton().getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("keeps its state in step with a pin from the diffstat", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+
+    findDiffstatAnchor()!.dispatchEvent(new MouseEvent("click"));
+
+    expect(pinButton().getAttribute("aria-pressed")).toBe("true");
+    expect(pinButton().getAttribute("aria-label")).toContain("Unpin");
+  });
+
+  it("still reads correctly after a re-render", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    pinButton().click();
+
+    renderRows(widget);
+
+    expect(pinButton().getAttribute("aria-pressed")).toBe("true");
+  });
+});

@@ -60,6 +60,15 @@
     .rows { display: flex; flex-direction: column; gap: 5px; }
     .rows.hide-empty .row--empty { display: none; }
 
+    .quota-line {
+      margin-top: 10px;
+      padding-top: 9px;
+      border-top: 1px solid var(--border-muted);
+      font-size: 11px;
+      color: var(--fg-muted);
+    }
+    .quota-line--out { color: var(--danger); }
+
     .rows-footer {
       display: flex;
       align-items: center;

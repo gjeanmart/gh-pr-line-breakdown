@@ -90,6 +90,29 @@ describe("category filter over captured commit markup", () => {
     expect(await injectBadges(FILES, CATEGORIES)).toBe(2);
   });
 
+  it("puts the badge straight after the file name, expanded or collapsed", async () => {
+    // The badge used to be placed relative to whichever buttons happened to be in the header,
+    // and "Expand all lines" only exists while a file is expanded — so in one diff the badge
+    // sat right of the path on open files and left of it on collapsed ones.
+    const shape = (filename: string) =>
+      Array.from(headerFor(filename).querySelectorAll("h3, button, .gh-breakdown-badge"))
+        .map((el) => (el.classList.contains("gh-breakdown-badge") ? "badge" : el.tagName.toLowerCase()))
+        .join(" ");
+
+    await injectBadges(FILES, CATEGORIES);
+    const whenExpanded = shape("CLAUDE.md");
+
+    document.body.innerHTML = COMMIT_PAGE;
+    Array.from(document.querySelectorAll('button[aria-label^="Expand all lines"]')).forEach((b) =>
+      b.remove()
+    );
+    clearBadges();
+    await injectBadges(FILES, CATEGORIES);
+
+    expect(whenExpanded).toContain("h3 badge");
+    expect(shape("CLAUDE.md").replace(/( button)+$/, "")).toBe(whenExpanded.replace(/( button)+$/, ""));
+  });
+
   it("hides a category by clicking each file's collapse control", async () => {
     await injectBadges(FILES, CATEGORIES);
     const clicks = wireToggles(["CLAUDE.md", "README.md"]);

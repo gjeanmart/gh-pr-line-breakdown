@@ -254,3 +254,119 @@ describe("quota and token guidance", () => {
     expect(shadow().querySelector(".settings-action")!.textContent).toBe("Check your token");
   });
 });
+
+describe("pinning", () => {
+  const popup = () => host().shadowRoot!.querySelector(".popup")!;
+
+  it("stays open after the cursor leaves once pinned", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor()!;
+
+    anchor.dispatchEvent(new MouseEvent("click"));
+    anchor.dispatchEvent(new MouseEvent("mouseleave"));
+    vi.advanceTimersByTime(500);
+
+    expect(host().style.display).toBe("block");
+    expect(popup().classList.contains("pinned")).toBe(true);
+  });
+
+  it("closes again on a second click", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor()!;
+
+    anchor.dispatchEvent(new MouseEvent("click"));
+    anchor.dispatchEvent(new MouseEvent("click"));
+
+    expect(host().style.display).toBe("none");
+    expect(popup().classList.contains("pinned")).toBe(false);
+  });
+
+  it("closes on Escape", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    findDiffstatAnchor()!.dispatchEvent(new MouseEvent("click"));
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+
+    expect(host().style.display).toBe("none");
+  });
+
+  it("ignores Escape when it is not pinned", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor()!;
+    anchor.dispatchEvent(new MouseEvent("mouseenter"));
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+
+    expect(host().style.display).toBe("block");
+  });
+
+  it("survives a re-render while pinned", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    findDiffstatAnchor()!.dispatchEvent(new MouseEvent("click"));
+
+    renderRows(widget);
+
+    expect(host().style.display).toBe("block");
+    expect(popup().classList.contains("pinned")).toBe(true);
+  });
+
+  it("tells the reader the diffstat is clickable", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor() as HTMLElement;
+
+    expect(anchor.title).toBe("Click to pin the line breakdown");
+    anchor.dispatchEvent(new MouseEvent("click"));
+    expect(anchor.title).toBe("Click to unpin the line breakdown");
+  });
+});
+
+describe("copy as markdown", () => {
+  const clickCopy = () => host().shadowRoot!.querySelector<HTMLElement>(".copy-md")!.click();
+
+  it("writes a markdown table to the clipboard", async () => {
+    const widget = await freshWidget();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    renderRows(widget);
+
+    clickCopy();
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+
+    const markdown = writeText.mock.calls[0][0] as string;
+    expect(markdown).toContain("| Category | Files | Added | Removed | Share |");
+    expect(markdown).toContain("| Tests |");
+    expect(markdown).toContain("**Total**");
+    vi.unstubAllGlobals();
+  });
+
+  it("notes a capped file list in the copied table", async () => {
+    const widget = await freshWidget();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    renderRows(widget, { truncated: true });
+
+    clickCopy();
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+
+    expect(writeText.mock.calls[0][0]).toContain("first 3,000 files");
+    vi.unstubAllGlobals();
+  });
+
+  it("says so when the clipboard refuses", async () => {
+    const widget = await freshWidget();
+    vi.stubGlobal("navigator", { clipboard: { writeText: () => Promise.reject(new Error("denied")) } });
+    renderRows(widget);
+    const button = host().shadowRoot!.querySelector<HTMLElement>(".copy-md")!;
+
+    button.click();
+    await vi.waitFor(() => expect(button.textContent).toBe("Copy failed"));
+
+    vi.unstubAllGlobals();
+  });
+});

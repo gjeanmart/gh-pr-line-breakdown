@@ -4,7 +4,7 @@ import type { ApiError, RateLimit } from "./github_api.js";
 import { findDiffstatAnchor } from "./anchor.js";
 import { safeCssColor } from "./color.js";
 import { escapeAttr, escapeHtml } from "./html.js";
-import { summarize } from "./summary.js";
+import { summarize, toMarkdown, type Summary } from "./summary.js";
 
 const HOST_ID = "gh-line-breakdown-host";
 
@@ -31,6 +31,12 @@ export type WidgetContext = {
 };
 
 let context: WidgetContext = {};
+
+// Pinned popups ignore mouseleave. Hover is right for opening; it is not right for reading
+// nine rows, which is why this exists.
+let pinned = false;
+// Kept so the copy button can render markdown without recomputing the breakdown
+let lastSummary: Summary | null = null;
 
 // Unauthenticated calls are capped at 60 an hour and one large PR can cost 30, so the number
 // only becomes interesting once it is low enough to matter.
@@ -96,11 +102,15 @@ function buildRows(
     })
     .join("");
 
+  lastSummary = summary;
+
   const emptyToggle =
     summary.emptyCount > 0
       ? `<button class="toggle-empty">${hideEmpty ? `Show ${summary.emptyCount} empty` : "Hide empty"}</button>`
       : "";
-  const footer = emptyToggle + buildQuotaHint();
+  const copyButton = `<button class="copy-md" title="Copy this breakdown as a markdown table">Copy markdown</button>`;
+  const quota = buildQuotaHint();
+  const footer = emptyToggle + copyButton + (quota ? `<span class="footer-gap"></span>${quota}` : "");
 
   return `
     <div class="header">
@@ -213,6 +223,20 @@ function setContent(html: string): void {
     }
   });
 
+  const copyButton = shadow.querySelector<HTMLElement>(".copy-md");
+  copyButton?.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    if (!lastSummary) return;
+    const markdown = toMarkdown(lastSummary, { truncated: context.truncated === true });
+    try {
+      await navigator.clipboard.writeText(markdown);
+      flash(copyButton, "Copied", "Copy markdown");
+    } catch {
+      // Clipboard writes need a focused document; nothing to recover, so say so
+      flash(copyButton, "Copy failed", "Copy markdown");
+    }
+  });
+
   if (context.onOpenSettings) {
     for (const btn of Array.from(shadow.querySelectorAll<HTMLElement>(".settings-action, .quota"))) {
       btn.addEventListener("click", (e) => {
@@ -248,6 +272,8 @@ function setContent(html: string): void {
     bindHoverListeners(host, anchor);
   }
 
+  applyPinnedState();
+
   // Content can change while the popup is open (loading -> rows): keep it anchored.
   if (host.style.display === "block") positionHost(host, anchor);
 }
@@ -281,6 +307,21 @@ function syncErrorMarker(anchor: Element): void {
   anchor.appendChild(dot);
 }
 
+function flash(button: HTMLElement, message: string, revertTo: string): void {
+  button.textContent = message;
+  setTimeout(() => {
+    button.textContent = revertTo;
+  }, 1500);
+}
+
+// Re-applied after every render, since setContent replaces the popup's contents wholesale.
+function applyPinnedState(): void {
+  shadowRoot?.querySelector(".popup")?.classList.toggle("pinned", pinned);
+  if (currentAnchor instanceof HTMLElement) {
+    currentAnchor.title = pinned ? "Click to unpin the line breakdown" : "Click to pin the line breakdown";
+  }
+}
+
 function positionHost(host: HTMLElement, anchor: Element): void {
   const rect = anchor.getBoundingClientRect();
   host.style.top = `${rect.bottom + window.scrollY + 8}px`;
@@ -302,13 +343,33 @@ function bindHoverListeners(host: HTMLElement, anchor: Element): void {
     host.style.display = "block";
   };
   const scheduleHide = () => {
+    if (pinned) return;
     hideTimer = setTimeout(() => { host.style.display = "none"; hideTimer = null; }, 120);
+  };
+  const setPinned = (next: boolean) => {
+    pinned = next;
+    applyPinnedState();
+    if (pinned) show();
+    else host.style.display = "none";
   };
 
   anchor.addEventListener("mouseenter", show, { signal });
   anchor.addEventListener("mouseleave", scheduleHide, { signal });
   host.addEventListener("mouseenter", show, { signal });
   host.addEventListener("mouseleave", scheduleHide, { signal });
+
+  // Click the diffstat to pin, click again to release. GitHub's chip is not interactive, so
+  // there is nothing to get in the way.
+  anchor.addEventListener("click", (event) => {
+    event.preventDefault();
+    setPinned(!pinned);
+  }, { signal });
+
+  document.addEventListener("keydown", (event) => {
+    if (pinned && (event as KeyboardEvent).key === "Escape") setPinned(false);
+  }, { signal });
+
+  applyPinnedState();
 }
 
 function ensureShadow(): ShadowRoot {
@@ -340,6 +401,7 @@ const STYLES = `
   }
 
   .popup {
+    position: relative;
     min-width: 480px;
     padding: 12px 16px 14px;
     background: var(--bgColor-default, var(--color-canvas-default, #ffffff));
@@ -350,6 +412,10 @@ const STYLES = `
     color: var(--fgColor-default, var(--color-fg-default, #1f2328));
     white-space: nowrap;
     cursor: default;
+  }
+
+  .popup.pinned {
+    border-color: var(--borderColor-accent-emphasis, var(--color-accent-emphasis, #0969da));
   }
 
   .header {
@@ -516,11 +582,25 @@ const STYLES = `
   .settings-action { color: var(--fgColor-accent, var(--color-accent-fg, #0969da)); }
 
   .footer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     margin-top: 8px;
     padding-top: 8px;
     border-top: 1px solid var(--borderColor-muted, var(--color-border-muted, #eaeef2));
-    text-align: right;
   }
+  .footer-gap { flex: 1; }
+
+  .copy-md {
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: inherit;
+    font-size: 11px;
+    color: var(--fgColor-accent, var(--color-accent-fg, #0969da));
+    cursor: pointer;
+  }
+  .copy-md:hover { text-decoration: underline; }
 
   .toggle-empty {
     background: none;

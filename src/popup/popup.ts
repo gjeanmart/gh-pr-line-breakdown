@@ -3,7 +3,7 @@ import type { Category } from "../config.js";
 import type { FileEntry } from "../matcher.js";
 import { safeCssColor } from "../color.js";
 import { escapeAttr, escapeHtml } from "../html.js";
-import { summarize } from "../summary.js";
+import { summarize, toMarkdown } from "../summary.js";
 import { parseGitHubUrl } from "../page.js";
 
 const content = document.getElementById("content")!;
@@ -37,10 +37,11 @@ function renderBreakdown(files: FileEntry[], categories: Category[], truncated: 
       </div>`)
     .join("");
 
-  const footer =
+  const emptyToggle =
     summary.emptyCount > 0
-      ? `<div class="rows-footer"><button class="toggle-empty">${hideEmpty ? `Show ${summary.emptyCount} empty` : "Hide empty"}</button></div>`
+      ? `<button class="toggle-empty">${hideEmpty ? `Show ${summary.emptyCount} empty` : "Hide empty"}</button>`
       : "";
+  const footer = `<div class="rows-footer"><button class="copy-md">Copy markdown</button>${emptyToggle}</div>`;
 
   content.innerHTML = `
     <div class="breakdown-header">
@@ -53,6 +54,19 @@ function renderBreakdown(files: FileEntry[], categories: Category[], truncated: 
     </div>
     <div class="rows${hideEmpty ? " hide-empty" : ""}">${rows}</div>
     ${footer}`;
+
+  const copyButton = content.querySelector<HTMLButtonElement>(".copy-md");
+  copyButton?.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(toMarkdown(summary, { truncated }));
+      copyButton.textContent = "Copied";
+    } catch {
+      copyButton.textContent = "Copy failed";
+    }
+    setTimeout(() => {
+      copyButton.textContent = "Copy markdown";
+    }, 1500);
+  });
 
   content.querySelector(".toggle-empty")?.addEventListener("click", () => {
     hideEmpty = !hideEmpty;

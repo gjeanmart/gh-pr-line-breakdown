@@ -40,7 +40,11 @@ The options page (click the extension icon → **Open Options**) has two tabs:
 
 You can **export** your categories to a JSON file to back them up or share them across browsers. **Importing** a file replaces your current categories — you can review the result before saving. The GitHub token is never included in exports.
 
-By default, unauthenticated API calls are limited to **60 requests/hour**. For private repos or heavy usage, add a GitHub token in **Settings**. Generate one at [GitHub Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens) — use `repo` scope for private repos, no scope for public only. The token is stored locally in your browser and never synced.
+By default, unauthenticated API calls are limited to **60 requests/hour**, and one large PR can cost 30 of them. For private repos or heavy usage, add a GitHub token in **Settings**.
+
+Prefer a [**fine-grained** personal access token](https://github.com/settings/personal-access-tokens/new) with **read-only** access to *Contents* and *Pull requests*, scoped to the repositories you actually review. That is everything this extension can use. A classic `repo`-scoped token would also grant write access to every repository you can reach — far more than is needed here, and worth avoiding for something running inside a web page.
+
+The token is stored in `chrome.storage.local`, so it stays on this machine and is never synced to your other browsers, never included in config exports, and only ever sent to `api.github.com` — the API client refuses to attach it to any other origin.
 
 ## Planned features
 

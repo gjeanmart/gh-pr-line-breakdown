@@ -674,6 +674,18 @@ to use in selectors (e.g. `diffTargetable`, `diffHeaderWrapper`, etc.).
   when category names are injected into `<input value="...">` attributes via `innerHTML`.
 - **Content script scope is `https://github.com/*`** (not just `/pull/*`) — necessary
   for SPA navigation from PR list → PR to work. Accept this as a deliberate trade-off.
+- **No `tabs` permission.** The popup reads the active tab's URL through `tabs.query`, which
+  works without it: host permissions for `github.com` make the URL visible on matching tabs,
+  and `tabs.sendMessage` needs host permission rather than `tabs`. On a non-GitHub tab the URL
+  is simply absent, which lands on the same "open a pull request or commit" message. What
+  `tabs` bought was the install warning *"Read your browsing history"*.
+- **The token only ever goes to `api.github.com`.** `apiUrl()` in `github_api.ts` builds every
+  request URL and throws if it does not resolve to that origin, so a future mistake in URL
+  construction cannot carry the Authorization header somewhere else.
+- **Explicit CSP** (`script-src 'self'; object-src 'self'; base-uri 'none'`) — MV3's default is
+  already this strict; declaring it means a loosening shows up in a diff.
+- **Zero production dependencies.** Nothing is bundled into the content script but our own
+  code, so there is no third-party package in a position to read the page or the token.
 
 ---
 

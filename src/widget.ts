@@ -1,6 +1,6 @@
 import type { Category } from "./config.js";
 import type { CategoryStats } from "./matcher.js";
-import type { ApiError } from "./github_api.js";
+import type { ApiError, RateLimit } from "./github_api.js";
 import { findDiffstatAnchor } from "./anchor.js";
 import { safeCssColor } from "./color.js";
 import { escapeAttr, escapeHtml } from "./html.js";
@@ -13,6 +13,31 @@ let shadowRoot: ShadowRoot | null = null;
 let listenerController: AbortController | null = null;
 let hideEmpty = true;
 let showErrorMarker = false;
+
+/**
+ * What the widget needs to know beyond the numbers themselves. Grew out of a parameter list
+ * that had reached four and was still growing.
+ */
+export type WidgetContext = {
+  /** The file list was capped by the API. */
+  truncated?: boolean;
+  /** What the API last said about our quota. */
+  rate?: RateLimit | null;
+  /** Whether a GitHub token is configured — decides whether quota is worth mentioning. */
+  hasToken?: boolean;
+  /** Opening the options page needs the extension APIs, which the content script owns. */
+  onOpenSettings?: () => void;
+  onToggleCategory?: (categoryName: string, visible: boolean) => void;
+};
+
+let context: WidgetContext = {};
+
+// Unauthenticated calls are capped at 60 an hour and one large PR can cost 30, so the number
+// only becomes interesting once it is low enough to matter.
+const LOW_QUOTA = 15;
+
+// The errors a token can actually do something about
+const TOKEN_FIXABLE: ApiError[] = ["rate_limit", "auth_required", "not_accessible"];
 const hiddenCategories: Set<string> = new Set();
 
 // A dot placed on GitHub's diffstat chip when the breakdown could not be loaded. The popup
@@ -31,6 +56,9 @@ const TITLE_ICON =
 const TRUNCATION_NOTE =
   "This PR has more files than the GitHub API returns (3,000 max), so these totals are partial.";
 
+const QUOTA_NOTE =
+  "Unauthenticated GitHub API calls are capped at 60 an hour. A token raises it to 5,000.";
+
 const EYE_OPEN = `<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M8 2c-1.981 0-3.671.992-4.933 2.078C1.797 5.169.88 6.423.43 7.1a1.98 1.98 0 0 0 0 1.8c.45.677 1.367 1.931 2.637 3.022C4.33 13.008 6.019 14 8 14c1.981 0 3.671-.992 4.933-2.078 1.27-1.091 2.187-2.345 2.637-3.022a1.98 1.98 0 0 0 0-1.8c-.45-.677-1.367-1.931-2.637-3.022C11.67 2.992 9.981 2 8 2ZM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0-1.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/></svg>`;
 const EYE_SLASH = `<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M8 2c-1.981 0-3.671.992-4.933 2.078C1.797 5.169.88 6.423.43 7.1a1.98 1.98 0 0 0 0 1.8c.45.677 1.367 1.931 2.637 3.022C4.33 13.008 6.019 14 8 14c1.981 0 3.671-.992 4.933-2.078 1.27-1.091 2.187-2.345 2.637-3.022a1.98 1.98 0 0 0 0-1.8c-.45-.677-1.367-1.931-2.637-3.022C11.67 2.992 9.981 2 8 2ZM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0-1.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/><line x1="2.5" y1="2.5" x2="13.5" y2="13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
 
@@ -38,9 +66,9 @@ const EYE_SLASH = `<svg width="13" height="13" viewBox="0 0 16 16" fill="current
 
 function buildRows(
   breakdown: Map<Category, CategoryStats>,
-  categories: Category[],
-  truncated: boolean
+  categories: Category[]
 ): string {
+  const truncated = context.truncated === true;
   const summary = summarize(breakdown, categories);
 
   const rows = summary.rows
@@ -72,6 +100,7 @@ function buildRows(
     summary.emptyCount > 0
       ? `<button class="toggle-empty">${hideEmpty ? `Show ${summary.emptyCount} empty` : "Hide empty"}</button>`
       : "";
+  const footer = emptyToggle + buildQuotaHint();
 
   return `
     <div class="header">
@@ -84,13 +113,28 @@ function buildRows(
       </span>
     </div>
     <div class="rows${hideEmpty ? " hide-empty" : ""}">${rows}</div>
-    <div class="footer">${emptyToggle}</div>
+    ${footer ? `<div class="footer">${footer}</div>` : ""}
   `;
+}
+
+// Shown only when it is actionable: no token, and few enough calls left to be a problem soon.
+function buildQuotaHint(): string {
+  const rate = context.rate;
+  if (!rate || context.hasToken || rate.remaining > LOW_QUOTA) return "";
+
+  const label =
+    rate.remaining === 0
+      ? "No API calls left this hour"
+      : `${rate.remaining} API call${rate.remaining === 1 ? "" : "s"} left this hour`;
+  const suffix = rate.resetAt ? ` \u00b7 resets ${formatClockTime(rate.resetAt)}` : "";
+
+  return `<button class="quota" title="${escapeAttr(QUOTA_NOTE)}">${label}${suffix}</button>`;
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-export function renderLoadingState(): void {
+export function renderLoadingState(ctx: WidgetContext = {}): void {
+  context = ctx;
   showErrorMarker = false;
   setContent(`<div class="loading"><span class="spinner"></span>Loading\u2026</div>`);
 }
@@ -103,20 +147,37 @@ const ERROR_MESSAGES: Record<ApiError, string> = {
   unknown: "Failed to load PR data",
 };
 
-export function renderError(kind: ApiError): void {
+export function renderError(kind: ApiError, ctx: WidgetContext = {}): void {
+  context = ctx;
   showErrorMarker = true;
-  const msg = ERROR_MESSAGES[kind];
-  setContent(`<div class="error"><span class="error-icon">&#9888;</span>${escapeHtml(msg)}</div>`);
+
+  const sentences = [ERROR_MESSAGES[kind]];
+  if (kind === "rate_limit" && ctx.rate?.resetAt) {
+    sentences.push(`Resets at ${formatClockTime(ctx.rate.resetAt)}.`);
+  }
+
+  const action =
+    ctx.onOpenSettings && TOKEN_FIXABLE.includes(kind)
+      ? `<div class="footer"><button class="settings-action">${ctx.hasToken ? "Check your token" : "Add a token"}</button></div>`
+      : "";
+
+  setContent(
+    `<div class="error"><span class="error-icon">&#9888;</span><span>${escapeHtml(sentences.join(" "))}</span></div>${action}`
+  );
+}
+
+function formatClockTime(epochMs: number): string {
+  return new Date(epochMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 export function renderHeaderIcon(
   breakdown: Map<Category, CategoryStats>,
   categories: Category[],
-  truncated: boolean,
-  onToggleCategory: (categoryName: string, visible: boolean) => void
+  ctx: WidgetContext = {}
 ): void {
+  context = ctx;
   showErrorMarker = false;
-  setContent(buildRows(breakdown, categories, truncated), onToggleCategory);
+  setContent(buildRows(breakdown, categories));
 }
 
 export function getHiddenCategories(): ReadonlySet<string> {
@@ -131,10 +192,8 @@ export function resetCategoryFilter(): void {
 
 // The popup is only ever opened by hover — see bindHoverListeners. Rendering content never
 // opens it, so navigating from a PR list into a PR no longer pops the widget open unasked.
-function setContent(
-  html: string,
-  onToggleCategory?: (categoryName: string, visible: boolean) => void
-): void {
+function setContent(html: string): void {
+  const onToggleCategory = context.onToggleCategory;
   const anchor = findDiffstatAnchor();
   if (!anchor) return;
 
@@ -153,6 +212,15 @@ function setContent(
       btn.textContent = hideEmpty ? `Show ${n} empty` : "Hide empty";
     }
   });
+
+  if (context.onOpenSettings) {
+    for (const btn of Array.from(shadow.querySelectorAll<HTMLElement>(".settings-action, .quota"))) {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        context.onOpenSettings?.();
+      });
+    }
+  }
 
   if (onToggleCategory) {
     for (const btn of Array.from(shadow.querySelectorAll<HTMLElement>(".cat-toggle"))) {
@@ -431,6 +499,21 @@ const STYLES = `
   .cat-toggle--hidden:hover {
     background: var(--bgColor-danger-muted, var(--color-danger-subtle, #fff0f0));
   }
+
+  .quota, .settings-action {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .quota { color: var(--fgColor-muted, var(--color-fg-muted, #656d76)); }
+  .quota:hover { color: var(--fgColor-accent, var(--color-accent-fg, #0969da)); }
+  .settings-action { color: var(--fgColor-accent, var(--color-accent-fg, #0969da)); }
 
   .footer {
     margin-top: 8px;

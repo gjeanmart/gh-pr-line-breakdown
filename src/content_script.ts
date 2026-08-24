@@ -1,7 +1,15 @@
 import { loadConfig } from "./config.js";
 import { buildBreakdown, classifyFile } from "./matcher.js";
-import { renderHeaderIcon, renderLoadingState, renderError, getHiddenCategories, resetCategoryFilter } from "./widget.js";
+import {
+  renderHeaderIcon,
+  renderLoadingState,
+  renderError,
+  getHiddenCategories,
+  resetCategoryFilter,
+  type WidgetContext,
+} from "./widget.js";
 import { fetchFiles } from "./github_api.js";
+import type { RateLimit } from "./github_api.js";
 import { parseGitHubPage } from "./page.js";
 import { injectBadges, clearBadges, setFilesVisible, restoreFilteredFiles } from "./badges.js";
 import { injectTreeCounts, clearTreeCounts } from "./file_tree.js";
@@ -17,6 +25,7 @@ let cachedPath: string | null = null;
 let cachedFiles: FileEntry[] | null = null;
 let cachedError: boolean = false;
 let cachedTruncated: boolean = false;
+let cachedRate: RateLimit | null = null;
 let lastHref = location.href;
 
 async function init(): Promise<void> {
@@ -72,11 +81,12 @@ async function runBreakdown(): Promise<void> {
     resetCategoryFilter();
     clearBadges();
     clearTreeCounts();
-    renderLoadingState();
+    renderLoadingState(widgetContext());
     const result = await fetchFiles(page, currentConfig.githubToken);
+    if (result.rate) cachedRate = result.rate;
     if ("error" in result) {
       cachedError = true;
-      renderError(result.error);
+      renderError(result.error, widgetContext());
       return;
     }
     cachedFiles = result.files;
@@ -90,8 +100,11 @@ async function runBreakdown(): Promise<void> {
   const breakdown = buildBreakdown(cachedFiles, categories);
   const filesByCategory = buildFilesByCategory(cachedFiles, categories);
 
-  renderHeaderIcon(breakdown, categories, cachedTruncated, (catName, visible) => {
-    setFilesVisible(filesByCategory.get(catName) ?? [], visible);
+  renderHeaderIcon(breakdown, categories, {
+    ...widgetContext(),
+    onToggleCategory: (catName, visible) => {
+      setFilesVisible(filesByCategory.get(catName) ?? [], visible);
+    },
   });
 
   const written = (await injectBadges(cachedFiles, categories)) + injectTreeCounts(cachedFiles);
@@ -107,6 +120,16 @@ async function runBreakdown(): Promise<void> {
   for (const [catName, filenames] of filesByCategory) {
     if (hidden.has(catName)) setFilesVisible(filenames, false);
   }
+}
+
+function widgetContext(): WidgetContext {
+  return {
+    truncated: cachedTruncated,
+    rate: cachedRate,
+    hasToken: Boolean(currentConfig?.githubToken),
+    // openOptionsPage is not available to content scripts — the service worker answers this
+    onOpenSettings: () => void chrome.runtime.sendMessage({ type: "openOptions" }),
+  };
 }
 
 function buildFilesByCategory(files: FileEntry[], categories: Category[]): Map<string, string[]> {

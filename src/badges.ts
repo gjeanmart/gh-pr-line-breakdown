@@ -207,27 +207,48 @@ function findHeaderContainer(el: HTMLElement): HTMLElement | null {
   return null;
 }
 
-// Insert badge before the "Viewed" button (PR pages) or before the last action button
-// in the header (commit pages, which have no "Viewed" button).
+// The badge goes immediately after the file name, always.
+//
+// It used to be positioned relative to the buttons in the header — before "Viewed", or before
+// the last button — and those buttons come and go: "Expand all lines" exists only while a file
+// is expanded, "Viewed" only on PR pages. Worse, the element findHeaderContainer hands us
+// differs between the two states (the file-path section when expanded, the <h3> itself when
+// collapsed, since its class matches the same test). The badge therefore landed to the right
+// of the path on expanded files and to the left on collapsed ones, in the same diff.
+//
+// The file name is the one element in a header that is always there, and it is what the badge
+// is describing. Anchoring to it makes placement identical in every state and on every page.
+//
 // Stamps INJECTED_ATTR on the container to block other strategies from injecting during
 // the same injectBadges() call (cleared at the end of the call).
 function insertBadge(headerContainer: HTMLElement, badge: HTMLElement): void {
   headerContainer.setAttribute(INJECTED_ATTR, "1");
 
+  const fileName = findFileNameElement(headerContainer);
+  if (fileName) {
+    fileName.insertAdjacentElement("afterend", badge);
+    return;
+  }
+
+  // No recognisable file name: fall back to the action area rather than dropping the badge
   const viewedBtn = headerContainer.querySelector<HTMLElement>("button[aria-label*='Viewed']");
   if (viewedBtn) {
     viewedBtn.insertAdjacentElement("beforebegin", badge);
     return;
   }
-  // Commit page: no "Viewed" button — insert before the last button in the header
-  // (typically the "..." more-options button) so the badge sits with the action area.
-  const allBtns = headerContainer.querySelectorAll<HTMLElement>("button");
-  const lastBtn = allBtns[allBtns.length - 1];
-  if (lastBtn) {
-    lastBtn.insertAdjacentElement("beforebegin", badge);
-  } else {
-    headerContainer.appendChild(badge);
-  }
+  headerContainer.appendChild(badge);
+}
+
+// The heading that holds the path — or, when the container *is* that heading, itself.
+function findFileNameElement(container: HTMLElement): HTMLElement | null {
+  if (container.matches('h3, [class*="file-name"]')) return container;
+
+  const heading = container.querySelector<HTMLElement>('h3, [class*="file-name"]');
+  if (heading) return heading;
+
+  // Classic UI and anything else that just has a link to the file
+  const link = container.querySelector<HTMLElement>('a[href^="#diff-"], a[href*="/blob/"]');
+  return link?.closest("h3") ?? link ?? null;
 }
 
 function createBadge(category: Category): HTMLElement {

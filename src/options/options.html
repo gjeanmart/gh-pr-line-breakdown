@@ -56,6 +56,13 @@
             <span class="perms-tag">recommended</span>
           </p>
           <ul class="perms-list">
+            <li>
+              <strong>Resource owner</strong> — the account or organisation that <em>owns</em> the
+              repos. A token only ever reaches its owner's repos, so reviewing an organisation's
+              PRs needs a token minted with that organisation selected (which its admins may have
+              to approve). A token under your own account returns
+              <em>“repository not accessible”</em> on every org repo.
+            </li>
             <li><strong>Repository access</strong> — the repos you review. Public repos are readable either way.</li>
             <li><strong>Metadata</strong> → Read-only — required by GitHub, added for you.</li>
             <li><strong>Pull requests</strong> → Read-only — pull request pages.</li>
@@ -69,6 +76,7 @@
           <ul class="perms-list">
             <li><strong>Public repos</strong> — no scope at all; the token only lifts your rate limit to 5,000 calls/hour.</li>
             <li><strong>Private repos</strong> — <code>repo</code>, which also grants <em>write</em> access to every repo you can reach. Prefer a fine-grained token.</li>
+            <li><strong>SAML organisations</strong> — press <em>Configure SSO</em> on the token and authorise it for the org, or its repos stay invisible.</li>
           </ul>
         </details>
       </div>

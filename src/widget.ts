@@ -165,17 +165,29 @@ export function renderLoadingState(ctx: WidgetContext = {}): void {
 
 const ERROR_MESSAGES: Record<ApiError, string> = {
   rate_limit: "Rate limit reached \u2014 add a GitHub token in the options to increase your quota",
-  not_accessible: "Repository not accessible \u2014 a GitHub token with repo scope may be required",
+  not_accessible: "Repository not accessible \u2014 add a GitHub token in the options",
   auth_required: "Authentication required \u2014 add a GitHub token in the options",
   network: "Network error \u2014 check your connection and try again",
   unknown: "Failed to load PR data",
+};
+
+/**
+ * What to say once a token is already set. "Add a token" is dead advice at that point \u2014 the
+ * token is the thing that is wrong, and the usual reason is the one GitHub never spells out:
+ * a fine-grained token only reaches repositories owned by its **resource owner**, so one
+ * minted under your own account 404s on every organisation repo.
+ */
+const TOKEN_SET_MESSAGES: Partial<Record<ApiError, string>> = {
+  not_accessible:
+    "Repository not accessible \u2014 your token does not cover it. A fine-grained token only reaches repos owned by the resource owner it was minted under, so an organisation's repos need a token owned by that organisation.",
+  auth_required: "Token rejected by GitHub \u2014 it may have expired or been revoked",
 };
 
 export function renderError(kind: ApiError, ctx: WidgetContext = {}): void {
   context = ctx;
   showErrorMarker = true;
 
-  const sentences = [ERROR_MESSAGES[kind]];
+  const sentences = [(ctx.hasToken && TOKEN_SET_MESSAGES[kind]) || ERROR_MESSAGES[kind]];
   if (kind === "rate_limit" && ctx.rate?.resetAt) {
     sentences.push(`Resets at ${formatClockTime(ctx.rate.resetAt)}.`);
   }
@@ -689,7 +701,9 @@ const STYLES = `
 
   .error {
     display: flex;
-    align-items: center;
+    /* flex-start, not center: a multi-line message would otherwise float its icon halfway
+       down the block. */
+    align-items: flex-start;
     gap: 8px;
     padding: 2px 0;
     color: var(--fgColor-danger, var(--color-danger-fg, #cf222e));

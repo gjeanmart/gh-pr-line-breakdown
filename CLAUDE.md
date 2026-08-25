@@ -515,7 +515,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 pnpm install
 pnpm run build         # outputs to dist/
-pnpm test              # vitest unit tests (181 tests)
+pnpm test              # vitest unit tests (183 tests)
 ```
 
 To load in Chrome:

@@ -147,6 +147,29 @@ describe("error marker on the diffstat", () => {
     expect(marker().length).toBe(1);
   });
 
+  it("stops telling you to add a token once you have one", async () => {
+    const widget = await freshWidget();
+
+    widget.renderError("not_accessible", { hasToken: true, onOpenSettings: () => {} });
+
+    const text = host().shadowRoot!.textContent!;
+    expect(text).not.toContain("add a GitHub token");
+    // The reason a valid token still 404s: it was minted under the wrong resource owner
+    expect(text).toContain("resource owner");
+    expect(host().shadowRoot!.querySelector(".settings-action")!.textContent).toBe(
+      "Check your token"
+    );
+  });
+
+  it("tells you to add a token when there is none", async () => {
+    const widget = await freshWidget();
+
+    widget.renderError("not_accessible", { onOpenSettings: () => {} });
+
+    expect(host().shadowRoot!.textContent).toContain("add a GitHub token");
+    expect(host().shadowRoot!.querySelector(".settings-action")!.textContent).toBe("Add a token");
+  });
+
   it("re-marks a chip that GitHub has re-rendered", async () => {
     const widget = await freshWidget();
     widget.renderError("auth_required");

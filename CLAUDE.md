@@ -268,7 +268,14 @@ left after strategies 1 and 2, which on most pages means never.
 with exactly one "Viewed" button, falling back to an ancestor whose class matches
 `diff-file-header` / `DiffFileHeader` (commit pages have no "Viewed" buttons).
 
-⚠️ **That fallback usually lands on `DiffFileHeader-module__file-path-section`, not the whole
+The fallback deliberately **skips the file-name element**. GitHub's heading carries
+`DiffFileHeader-module__file-name__*`, which matches the same test, and a file with every line
+added has no "Expand all lines" button — so it is resolved from the `#diff-` anchor *inside*
+that heading, and the walk would otherwise stop there. A container that is the file name has
+no room for the badge: it lands outside, where the "already badged?" check cannot see it, and
+every later pass adds another. That shipped in v0.1.7 as two badges per new file.
+
+⚠️ **The fallback usually lands on `DiffFileHeader-module__file-path-section`, not the whole
 header row** — the class test matches any `DiffFileHeader-module__*` class, and the path
 section is hit first. So the element in `fileHeaderMap` is often an inner section of the
 header, and `insertBadge` then places the badge next to the file name rather than before the
@@ -508,7 +515,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 pnpm install
 pnpm run build         # outputs to dist/
-pnpm test              # vitest unit tests (170 tests)
+pnpm test              # vitest unit tests (181 tests)
 ```
 
 To load in Chrome:

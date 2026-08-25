@@ -121,6 +121,60 @@ describe("category filter over captured commit markup", () => {
     expect(badge.style.marginLeft).toBe("8px");
   });
 
+  describe("a file with every line added", () => {
+    // No "Expand all lines" button, because there is nothing to expand. Those files are
+    // resolved from the #diff- anchor inside the file-name heading, which is the path that
+    // produced two badges per file in v0.1.7.
+    beforeEach(() => {
+      Array.from(document.querySelectorAll('button[aria-label^="Expand all lines"]')).forEach((b) =>
+        b.remove()
+      );
+      clearBadges();
+    });
+
+    it("gets exactly one badge", async () => {
+      expect(await injectBadges(FILES, CATEGORIES)).toBe(2);
+      expect(document.querySelectorAll(".gh-breakdown-badge")).toHaveLength(2);
+    });
+
+    it("still has exactly one after repeated passes", async () => {
+      // The content script re-runs after every settled batch of mutations, and on a large PR
+      // GitHub keeps mutating for as long as you scroll
+      for (let pass = 0; pass < 5; pass++) await injectBadges(FILES, CATEGORIES);
+
+      expect(document.querySelectorAll(".gh-breakdown-badge")).toHaveLength(2);
+    });
+
+    it("stays at one badge each while the rest of the diff is still rendering", async () => {
+      // The other half of the bug: with 18 files in the PR and 2 rendered, the "nothing to
+      // do" early exit cannot fire, so every pass runs the full injection. Both halves are
+      // needed — either one alone leaves the count correct, which is how the first version
+      // of this test passed against the broken code.
+      const wholePr = [
+        ...FILES,
+        ...Array.from({ length: 16 }, (_, i) => ({
+          filename: `src/not-rendered-${i}.ts`,
+          added: 1,
+          removed: 0,
+        })),
+      ];
+
+      for (let pass = 0; pass < 4; pass++) await injectBadges(wholePr, CATEGORIES);
+
+      expect(document.querySelectorAll(".gh-breakdown-badge")).toHaveLength(2);
+    });
+
+    it("keeps the badge inside the element the duplicate check searches", async () => {
+      // This is the invariant the bug broke: the badge was placed outside its own container,
+      // so headerContainer.querySelector could never find it and every pass added another
+      await injectBadges(FILES, CATEGORIES);
+
+      const badge = document.querySelector(".gh-breakdown-badge")!;
+      const header = badge.closest('[class*="diff-file-header"]')!;
+      expect(header.querySelector(".gh-breakdown-badge")).toBe(badge);
+    });
+  });
+
   it("hides a category by clicking each file's collapse control", async () => {
     await injectBadges(FILES, CATEGORIES);
     const clicks = wireToggles(["CLAUDE.md", "README.md"]);

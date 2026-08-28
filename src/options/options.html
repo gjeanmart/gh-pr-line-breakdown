@@ -37,11 +37,40 @@
         <p class="card-title">GitHub Token</p>
         <p class="card-desc">
           Required for <strong>private repos</strong>. On public repos, omitting it works but is
-          rate-limited to 60 API calls/hour. Needs <code>repo</code> scope for private repos,
-          no scope for public. Stored only in your browser (not synced across devices).
+          rate-limited to 60 API calls/hour. Stored only in your browser — never synced across
+          devices, never included in exports, and only ever sent to <code>api.github.com</code>.
         </p>
-        <input type="password" id="github-token" placeholder="ghp_…" />
+        <input type="password" id="github-token" placeholder="github_pat_… or ghp_…" />
         <p class="quota-readout" id="quota-readout">Checking your API quota…</p>
+
+        <details class="perms">
+          <summary>Which permissions does it need?</summary>
+
+          <p class="perms-lead">
+            Read-only, and nothing more — the extension only reads the list of changed files of
+            a pull request or a commit.
+          </p>
+
+          <p class="perms-kind">
+            <a href="https://github.com/settings/personal-access-tokens/new" target="_blank">Fine-grained token</a>
+            <span class="perms-tag">recommended</span>
+          </p>
+          <ul class="perms-list">
+            <li><strong>Repository access</strong> — the repos you review. Public repos are readable either way.</li>
+            <li><strong>Metadata</strong> → Read-only — required by GitHub, added for you.</li>
+            <li><strong>Pull requests</strong> → Read-only — pull request pages.</li>
+            <li><strong>Contents</strong> → Read-only — commit pages.</li>
+          </ul>
+          <p class="perms-note">No <em>Account</em> permissions, and no write access anywhere.</p>
+
+          <p class="perms-kind">
+            <a href="https://github.com/settings/tokens/new" target="_blank">Classic token</a>
+          </p>
+          <ul class="perms-list">
+            <li><strong>Public repos</strong> — no scope at all; the token only lifts your rate limit to 5,000 calls/hour.</li>
+            <li><strong>Private repos</strong> — <code>repo</code>, which also grants <em>write</em> access to every repo you can reach. Prefer a fine-grained token.</li>
+          </ul>
+        </details>
       </div>
 
       <div class="card">

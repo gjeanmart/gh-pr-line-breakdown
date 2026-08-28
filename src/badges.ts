@@ -191,6 +191,19 @@ async function sha256hex(str: string): Promise<string> {
 // Primary: smallest ancestor with exactly one "Viewed" button (PR pages only).
 // Fallback: ancestor whose CSS module class name contains "diff-file-header" or
 // "DiffFileHeader" — Primer React commit pages use this pattern without "Viewed" buttons.
+//
+// The fallback must not stop at the file name itself. GitHub's heading carries
+// DiffFileHeader-module__file-name__*, which matches the same test, and a file with no
+// "Expand all lines" button (every line added, so there is nothing to expand) is resolved
+// from the #diff- anchor *inside* that heading — so the walk starts one element below it and
+// would otherwise return it. A container that is the file name has no room for the badge,
+// which then lands outside it, where the "already badged?" check cannot see it, and every
+// later pass adds another one.
+function isFileNameElement(el: HTMLElement): boolean {
+  const cls = typeof el.className === "string" ? el.className : "";
+  return el.tagName === "H3" || /file-name/i.test(cls);
+}
+
 function findHeaderContainer(el: HTMLElement): HTMLElement | null {
   let container: HTMLElement | null = el.parentElement;
   for (let i = 0; i < 12 && container; i++) {
@@ -200,7 +213,9 @@ function findHeaderContainer(el: HTMLElement): HTMLElement | null {
 
     // Commit page fallback: Primer React file header identified by CSS module class
     const cls = typeof container.className === "string" ? container.className : "";
-    if (cls && /diff-file-header|DiffFileHeader/i.test(cls)) return container;
+    if (cls && /diff-file-header|DiffFileHeader/i.test(cls) && !isFileNameElement(container)) {
+      return container;
+    }
 
     container = container.parentElement;
   }
@@ -225,8 +240,16 @@ function insertBadge(headerContainer: HTMLElement, badge: HTMLElement): void {
   headerContainer.setAttribute(INJECTED_ATTR, "1");
 
   const fileName = findFileNameElement(headerContainer);
-  if (fileName) {
+  if (fileName && fileName !== headerContainer) {
+    // A sibling of the file name, and therefore still a descendant of the container — which
+    // is the scope the duplicate check searches. Keep those two facts together.
     fileName.insertAdjacentElement("afterend", badge);
+    return;
+  }
+  if (fileName) {
+    // The container *is* the file name. Placing the badge after it would put it outside the
+    // container; inside, right after the path, reads the same and stays findable.
+    headerContainer.appendChild(badge);
     return;
   }
 

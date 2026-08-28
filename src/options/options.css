@@ -369,3 +369,83 @@ textarea:focus {
   color: var(--fg-muted);
 }
 .quota-readout--out { color: var(--danger); }
+
+/* ── Token permissions (collapsed under the token field) ──
+   Folded away by default: the answer is only wanted while minting a token, and the card is
+   read every time the tab is opened. */
+.perms {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.perms summary {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  cursor: pointer;
+  list-style: none;
+}
+
+.perms summary::-webkit-details-marker { display: none; }
+
+.perms summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 12px;
+  color: var(--fg-subtle);
+}
+
+.perms[open] summary::before { content: "▾"; }
+
+.perms summary:hover { text-decoration: underline; }
+
+.perms-lead,
+.perms-note {
+  font-size: 12px;
+  color: var(--fg-muted);
+  line-height: 1.6;
+  margin: 10px 0 0;
+}
+
+.perms-kind {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 14px 0 4px;
+}
+
+.perms-kind a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.perms-kind a:hover { text-decoration: underline; }
+
+.perms-tag {
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--accent-subtle);
+  color: var(--accent);
+  border-radius: 10px;
+  padding: 1px 8px;
+  margin-left: 6px;
+}
+
+.perms-list {
+  font-size: 12px;
+  color: var(--fg-muted);
+  line-height: 1.6;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.perms-list strong { color: var(--fg); font-weight: 500; }
+
+.perms-list code {
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 11px;
+  background: var(--border-muted);
+  padding: 1px 5px;
+  border-radius: 4px;
+}

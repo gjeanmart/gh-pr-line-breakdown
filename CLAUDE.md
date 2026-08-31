@@ -237,8 +237,25 @@ anchored as it changes height (loading spinner -> full row list).
 - Each row: category name | N files (gray, 11px) | bar | +added −removed (paired in a
   flex container, `min-width: 48px` each for column alignment) | % | eye icon button
 - `CategoryStats` includes a `files` counter (incremented per file in `buildBreakdown`)
+**Where the eye sits differs by surface, on purpose.** The widget has room for a column of
+its own, so the eye is the last of six and lines up down the popup. The extension popup is
+300px wide and has four columns, so the eye rides inside `.cat-info`, next to the label it
+acts on. It was briefly a fifth child against those four columns, which is not an overflow —
+grid opens an implicit *row*, so the eye appeared on a second line underneath the category
+name. Child count and column count have to agree.
+
 - Rows with 0 lines get a `row--empty` class and are hidden by default via `.rows.hide-empty .row--empty { display: none; }`.
   A footer toggle link ("Show N empty" / "Hide empty") lets the user reveal them.
+- **Every footer control is a link, and one CSS rule covers all four.** `.sort-toggle` and
+  `.show-all` were once rendered without appearing in the stylesheet at all, so they fell back
+  to the browser's default grey button: the sort control looked permanently pressed, and
+  "Show all" did not read as the link beside it. `widget.test.ts` now parses the stylesheet's
+  selectors and asserts every rendered footer button has a rule — comments stripped first,
+  because the first version of that test was satisfied by a comment naming the classes.
+- **The sort control is labelled with the action** ("Sort by size" / "Sort in order"), matching
+  "Hide empty" and "Copy markdown" beside it. Labelled with the state, a working toggle read as
+  a stuck one — the more so because config order and size order coincide on many real PRs,
+  which is what `describe("sorting")` uses a purpose-built breakdown to avoid.
   State is tracked in the `hideEmpty` module variable (persists across hover open/close).
   The same pattern is implemented in the extension popup (`popup.ts` / `popup.html`).
 
@@ -421,10 +438,43 @@ rather than two implementations that drift. Notes on it:
 **Placement is behavioural, not a class-name guess.** Every selector guess in this project has
 eventually broken (the anchor in v0.1.6, the badge twice since), and the Files-changed toolbar
 is client-rendered, so there is no fixture to check a guess against. `findStickyActionRow`
-looks for what the row *is*: a parent holding at least three `button[aria-label]` children,
-with a `position: sticky | fixed` ancestor within five levels. If it finds nothing the
-launcher does not fail — it falls back to a floating button of its own in the same corner
-(`.gh-breakdown-launcher--floating`). The reader always gets a way in.
+looks for what the row *is*: a container with at least two controls beneath it and a
+`position: sticky | fixed` ancestor within eight levels. Of the containers that qualify, the
+highest on the page wins, and the deepest of those — the tight row, not a wrapper around it.
+
+Two details there are both scars:
+
+- **Controls are `button, [role="button"], a[aria-label]`,** not `button[aria-label]`. The
+  toolbar mixes plain buttons, anchors carrying the accessible name, and elements Primer gives
+  a button role; the narrow selector matched none of them.
+- **Controls are grouped by any ancestor within `GROUPING_DEPTH` (3), not by direct parent.**
+  Primer wraps IconButtons in elements of their own, so the buttons in one visual row
+  frequently do not share a parent. Counting direct children found no row at all, which is how
+  the launcher ended up floating on a page whose toolbar was right there.
+
+Two exclusions carry most of the weight, and both come from getting it wrong first:
+
+- **Per-file diff headers** (`FILE_LEVEL`, the same list `anchor.ts` uses) are sticky too, and
+  carry their own cluster of icon buttons — Viewed, comment, the overflow menu. The first
+  version put our icon at the right-hand end of the first file in the diff.
+- **GitHub's global navigation** — search, the plus menu, issues, the inbox, the avatar — is
+  sticky, button-rich, and the topmost sticky thing on the page, so "highest wins" alone would
+  land the icon next to the user's avatar. It sits outside `<main>` and the PR's own toolbar
+  sits inside it, which separates them without naming a class (`PAGE_CONTENT`).
+
+The threshold is two rather than three because the cluster we want is small (diff settings,
+conversations, Copilot); once those two exclusions are in place there is nothing left that a
+lower threshold wrongly matches.
+
+**When it still goes wrong, do not guess again** — `scripts/diagnose-launcher.js` pastes into
+DevTools and prints every candidate container with the counts, offsets and stickiness the
+finder saw, plus the row it would choose. Three placement attempts were spent inferring this
+markup from screenshots; the snippet answers it in one paste.
+
+If it finds nothing the launcher does not fail — it falls back to a floating button of its
+own (`.gh-breakdown-launcher--floating`), **bottom right**. Top right, where it started, put
+it squarely on top of GitHub's global navigation: ugly, and covering controls the reader
+wanted. The reader always gets a way in.
 
 `ensureLauncher()` exits immediately when the launcher is already hosted and connected. That
 search reads every aria-labelled button on the page — one per file header on a large PR — and
@@ -601,7 +651,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 pnpm install
 pnpm run build         # outputs to dist/
-pnpm test              # vitest unit tests (225 tests)
+pnpm test              # vitest unit tests (237 tests)
 ```
 
 To load in Chrome:

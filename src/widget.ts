@@ -127,11 +127,14 @@ function buildRows(
     summary.emptyCount > 0
       ? `<button class="toggle-empty">${prefs.hideEmpty ? `Show ${summary.emptyCount} empty` : "Hide empty"}</button>`
       : "";
+  // Labelled with the action, not the state. "By size" next to "Hide empty" and "Copy
+  // markdown" — two labels that describe what clicking does — read as a state badge, which
+  // made a working toggle look stuck, especially while it was styled as a pressed button.
   const sortToggle = `<button class="sort-toggle" title="${
     prefs.sortBySize
-      ? "Sorted biggest first — switch back to category order"
-      : "In category order, which is matching precedence — switch to biggest first"
-  }">${prefs.sortBySize ? "By size" : "By order"}</button>`;
+      ? "Currently biggest first — switch back to category order, which is matching precedence"
+      : "Currently in category order, which is matching precedence — switch to biggest first"
+  }">${prefs.sortBySize ? "Sort in order" : "Sort by size"}</button>`;
   const anyHidden = summary.rows.some((row) => hiddenCategories.has(row.category.name));
   const showAll = anyHidden
     ? `<button class="show-all" title="Show every category again">Show all</button>`
@@ -758,7 +761,14 @@ const STYLES = `
   }
   .footer-gap { flex: 1; }
 
-  .copy-md {
+  /* Every control in the footer reads as a link, and they are all listed here together.
+     .sort-toggle and .show-all were missing from this block entirely, so they rendered as
+     the browser's default grey buttons — which is why the sort control looked permanently
+     pressed and "Show all" read as something other than the link beside it. */
+  .copy-md,
+  .toggle-empty,
+  .sort-toggle,
+  .show-all {
     background: none;
     border: none;
     padding: 0;
@@ -766,20 +776,13 @@ const STYLES = `
     font-size: 11px;
     color: var(--fgColor-accent, var(--color-accent-fg, #0969da));
     cursor: pointer;
-  }
-  .copy-md:hover { text-decoration: underline; }
-
-  .toggle-empty {
-    background: none;
-    border: none;
-    padding: 0;
-    font-size: 11px;
-    color: var(--fgColor-accent, var(--color-accent-fg, #0969da));
-    cursor: pointer;
-    font-family: inherit;
+    white-space: nowrap;
   }
 
-  .toggle-empty:hover {
+  .copy-md:hover,
+  .toggle-empty:hover,
+  .sort-toggle:hover,
+  .show-all:hover {
     text-decoration: underline;
   }
 

@@ -21,6 +21,25 @@ async function freshWidget() {
 
 const host = () => document.getElementById(HOST_ID)!;
 const shadowStyle = () => host().shadowRoot!.querySelector("style")!.textContent!;
+const shadow = () => host().shadowRoot!;
+
+/**
+ * The class selectors the widget's stylesheet actually declares rules for.
+ *
+ * Comments are stripped first, and selectors are read from the text before each block. Asking
+ * whether the raw stylesheet *contains* a class name is not the same question: the block that
+ * styles the footer carries a comment naming the very classes it styles, so a broken
+ * stylesheet passed that check on its own prose.
+ */
+function styledSelectors(): string[] {
+  const css = shadowStyle().replace(/\/\*[\s\S]*?\*\//g, "");
+  return css
+    .split("}")
+    .flatMap((block) => block.split("{")[0].split(","))
+    .map((selector) => selector.trim())
+    .filter(Boolean)
+    .flatMap((selector) => selector.match(/\.[a-zA-Z0-9_-]+/g) ?? []);
+}
 
 // jsdom has no layout engine, so every rect is zero. The positioning maths is the point here,
 // so the rect is supplied.
@@ -411,6 +430,92 @@ describe("staying with its anchor", () => {
   });
 });
 
+describe("the footer controls", () => {
+  // The bug this pins: .sort-toggle and .show-all were rendered but never appeared in the
+  // stylesheet, so they fell back to the browser's default grey button. Easy to miss reading
+  // either file alone, and invisible to a test that only asks whether the button exists.
+  it("styles every control it renders", async () => {
+    const widget = await freshWidget();
+    widget.setHiddenCategories(["Tests"]);
+    renderRows(widget, { prefs: { sortBySize: false, hideEmpty: true } });
+
+    const classes = Array.from(host().shadowRoot!.querySelectorAll(".footer button"))
+      .flatMap((button) => Array.from(button.classList));
+
+    expect(classes).toEqual(["sort-toggle", "copy-md", "toggle-empty", "show-all"]);
+    for (const name of classes) expect(styledSelectors()).toContain(`.${name}`);
+  });
+
+  it("offers Show all once something is hidden, and not before", async () => {
+    const widget = await freshWidget();
+
+    renderRows(widget);
+    expect(shadow().querySelector(".show-all")).toBeNull();
+
+    widget.setHiddenCategories(["Tests"]);
+    renderRows(widget);
+    expect(shadow().querySelector(".show-all")).not.toBeNull();
+  });
+
+  // The label names the action, like "Hide empty" and "Copy markdown" beside it. Labelled
+  // with the state instead, a working toggle read as a stuck one.
+  it("labels the sort control with what clicking will do", async () => {
+    const widget = await freshWidget();
+
+    renderRows(widget, { prefs: { sortBySize: false, hideEmpty: true } });
+    expect(shadow().querySelector(".sort-toggle")!.textContent).toBe("Sort by size");
+
+    renderRows(widget, { prefs: { sortBySize: true, hideEmpty: true } });
+    expect(shadow().querySelector(".sort-toggle")!.textContent).toBe("Sort in order");
+  });
+});
+
+describe("sorting", () => {
+  // Config order and size order coincide on plenty of real PRs — the biggest category is
+  // often the first one listed — so this uses a breakdown where they cannot.
+  const MIXED = [
+    { filename: "a.test.ts", added: 500, removed: 0 },
+    { filename: "README.md", added: 5, removed: 0 },
+    { filename: "src/app.ts", added: 50, removed: 0 },
+  ];
+
+  const visibleNames = () =>
+    Array.from(host().shadowRoot!.querySelectorAll(".row:not(.row--empty) .cat-name"))
+      .map((el) => el.textContent!.trim());
+
+  function render(widget: Widget, sortBySize: boolean): void {
+    const { categories } = DEFAULT_CONFIG;
+    widget.renderHeaderIcon(buildBreakdown(MIXED, categories), categories, {
+      prefs: { sortBySize, hideEmpty: true },
+    });
+  }
+
+  it("follows category order by default, which is matching precedence", async () => {
+    const widget = await freshWidget();
+
+    render(widget, false);
+
+    expect(visibleNames()).toEqual(["Main", "Tests", "Documentation"]);
+  });
+
+  it("puts the biggest category first when asked", async () => {
+    const widget = await freshWidget();
+
+    render(widget, true);
+
+    expect(visibleNames()).toEqual(["Tests", "Main", "Documentation"]);
+  });
+
+  it("reorders on click, without the content script", async () => {
+    const widget = await freshWidget();
+    render(widget, false);
+
+    shadow().querySelector<HTMLElement>(".sort-toggle")!.click();
+
+    expect(visibleNames()).toEqual(["Tests", "Main", "Documentation"]);
+  });
+});
+
 describe("copy as markdown", () => {
   const clickCopy = () => host().shadowRoot!.querySelector<HTMLElement>(".copy-md")!.click();
 
@@ -461,16 +566,13 @@ describe("reading controls", () => {
   const names = () =>
     Array.from(shadow().querySelectorAll(".cat-name")).map((el) => el.textContent?.trim());
 
-  it("shows categories in config order, and biggest-first when the preference says so", async () => {
+  // The ordering itself is covered in "sorting", against a breakdown where config order and
+  // size order actually differ. This file's own FILES has Main at 13 lines and Tests at 6, so
+  // both orders agree and it can only check the default.
+  it("shows categories in config order by default", async () => {
     const ordered = await freshWidget();
     renderRows(ordered);
     expect(names()!.slice(0, 2)).toEqual(["Main", "Tests"]);
-
-    const sorted = await freshWidget();
-    renderRows(sorted, { prefs: { sortBySize: true, hideEmpty: true } });
-    // Main is 13 lines, Tests 6, so this order is the same either way — assert on the
-    // control instead, which is what the reader actually toggles
-    expect(shadow().querySelector(".sort-toggle")!.textContent).toBe("By size");
   });
 
   it("tells the content script when the sort preference changes", async () => {
@@ -481,7 +583,7 @@ describe("reading controls", () => {
     shadow().querySelector<HTMLElement>(".sort-toggle")!.click();
 
     expect(onPrefsChange).toHaveBeenCalledWith({ sortBySize: true });
-    expect(shadow().querySelector(".sort-toggle")!.textContent).toBe("By size");
+    expect(shadow().querySelector(".sort-toggle")!.textContent).toBe("Sort in order");
   });
 
   it("persists the empty-category toggle too", async () => {

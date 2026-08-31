@@ -63,19 +63,19 @@ function renderBreakdown(
       <div class="row${isEmpty ? " row--empty" : ""}">
         <div class="cat-info">
           <span class="cat-dot" style="background:${safeCssColor(category.color)}"></span>
-          <div>
+          <div class="cat-label">
             <span class="cat-name">${escapeHtml(category.name)}</span>
             <span class="cat-files">${fileLabel}</span>
           </div>
+          <button class="cat-toggle${hiddenCategories.has(category.name) ? " cat-toggle--hidden" : ""}"
+                  data-cat="${escapeAttr(category.name)}"
+                  title="${hiddenCategories.has(category.name) ? "Show" : "Hide"} ${escapeAttr(category.name)} files"
+                  aria-pressed="${hiddenCategories.has(category.name)}"
+          >${hiddenCategories.has(category.name) ? EYE_SLASH : EYE_OPEN}</button>
         </div>
         <span class="stat stat-added">+${stats.added.toLocaleString()}</span>
         <span class="stat stat-removed">\u2212${stats.removed.toLocaleString()}</span>
         <span class="pct">${percent}%</span>
-        <button class="cat-toggle${hiddenCategories.has(category.name) ? " cat-toggle--hidden" : ""}"
-                data-cat="${escapeAttr(category.name)}"
-                title="${hiddenCategories.has(category.name) ? "Show" : "Hide"} ${escapeAttr(category.name)} files"
-                aria-pressed="${hiddenCategories.has(category.name)}"
-        >${hiddenCategories.has(category.name) ? EYE_SLASH : EYE_OPEN}</button>
       </div>`)
     .join("");
 

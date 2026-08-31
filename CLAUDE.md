@@ -25,6 +25,7 @@ gh-pr-line-breakdown/
 │   ├── summary.ts          # totals, percentages, bar widths, markdown export (pure)
 │   ├── background.ts       # service worker: opens the options page on request
 │   ├── badges.ts           # injects colored category pill badges into file diff headers
+│   ├── file_headers.ts     # filename → header map + what we collapsed, with its contract
 │   ├── file_tree.ts        # injects +N -N line counts into the PR file tree sidebar
 │   ├── matcher.ts          # wildcard category matching (custom globMatch, no deps)
 │   ├── config.ts           # Category/Config types, defaults, chrome.storage helpers
@@ -51,6 +52,7 @@ gh-pr-line-breakdown/
 │   ├── config.test.ts      # fallback normalisation + import validation (pure)
 │   ├── summary.test.ts     # breakdown arithmetic, markdown, tree rollup, escaping (pure)
 │   ├── file_tree.test.ts   # jsdom tests for the sidebar counts
+│   ├── file_headers.test.ts # the header map's contract, including staleness
 │   └── fixtures/           # captured GitHub markup (PR header, commit header)
 ├── package.json
 ├── tsconfig.json
@@ -273,26 +275,25 @@ The fallback deliberately **skips the file-name element**. GitHub's heading carr
 added has no "Expand all lines" button — so it is resolved from the `#diff-` anchor *inside*
 that heading, and the walk would otherwise stop there. A container that is the file name has
 no room for the badge: it lands outside, where the "already badged?" check cannot see it, and
-every later pass adds another. That shipped in v0.1.7 as two badges per new file.
+every later pass adds another. That shipped in v0.1.7 as duplicate badges per new file.
 
-⚠️ **The fallback usually lands on `DiffFileHeader-module__file-path-section`, not the whole
-header row** — the class test matches any `DiffFileHeader-module__*` class, and the path
-section is hit first. So the element in `fileHeaderMap` is often an inner section of the
-header, and `insertBadge` then places the badge next to the file name rather than before the
-"Viewed" button. That is where the badges actually render today, and it looks fine — but
-anything that needs a *sibling* of the path section (the collapse control does) must climb
-out of it. Do not assume `fileHeaderMap` holds the full header row.
+⚠️ **What this container is and is not — rules 1 to 4 — is written down in
+`src/file_headers.ts`.** The short version: it is inside the header row but usually not the
+row itself, it always contains the file name, it does not necessarily contain the action
+buttons, and it goes stale.
 
 `clearBadges()` removes all injected badges when navigating to a new PR.
 
 A 10×10px rounded color swatch (`.cat-dot`) also appears to the left of each category name
 in the hover widget and the extension popup.
 
-**Category filter / collapse** (`setFilesVisible`, `fileHeaderMap`, `src/collapse.ts`):
+**Category filter / collapse** (`setFilesVisible`, `src/file_headers.ts`, `src/collapse.ts`):
 
-Each strategy also stores the resolved `headerContainer` in `fileHeaderMap: Map<string, HTMLElement>`
-(filename → header element). This map drives the category filter: when the user clicks an eye
-icon in the widget, `setFilesVisible(filenames, false)` collapses the matching file diffs.
+Each strategy also stores the resolved `headerContainer` via `rememberHeader()` in
+**`src/file_headers.ts`**, which owns the filename → header map and the record of which files
+*we* collapsed. That module carries the map's contract as a comment, because three separate
+bugs have come from callers disagreeing about what "the header" is — read it before touching
+anything that consumes the map.
 
 Collapsing **drives GitHub's own collapse control** rather than hiding DOM ourselves — the
 chevron IconButton present in every file header, on PR and commit pages alike:
@@ -515,7 +516,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 pnpm install
 pnpm run build         # outputs to dist/
-pnpm test              # vitest unit tests (181 tests)
+pnpm test              # vitest unit tests (189 tests)
 ```
 
 To load in Chrome:

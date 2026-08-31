@@ -46,19 +46,91 @@ Prefer a [**fine-grained** personal access token](https://github.com/settings/pe
 
 The token is stored in `chrome.storage.local`, so it stays on this machine and is never synced to your other browsers, never included in config exports, and only ever sent to `api.github.com` — the API client refuses to attach it to any other origin.
 
-## Planned features
+## Roadmap
 
-- **Sort categories by size** — read the breakdown biggest-first instead of in matching order (category order is matching precedence, which is rarely the order you want to read)
-- **Filter shortcuts** — "show only this category" and "show/hide everything" from the widget, so driving the eye icons on a large PR takes one click rather than eight
-- **Filter from the toolbar popup** — the popup shows the same numbers as the widget but cannot act on them yet
-- **Firefox support** — publish to the Firefox Add-ons Marketplace (AMO)
-- **Category pills on PR list pages** — inject mini colored category pills on GitHub's PR list view so you can see the file-type composition of a PR before opening it
-- **LLM integration** — connect to a cloud (OpenAI, Anthropic, etc.) or local (Ollama) LLM for AI-assisted review: category-aware PR summaries, review focus suggestions, inline comment proposals, and risk flagging. Configurable endpoint and API key in the Settings tab
-- **GitHub classic experience support** — the extension currently only works with GitHub's new (Primer React) UI; add fallback selectors to support the classic GitHub experience
-- **GitLab support** — bring the same breakdown widget and file badges to GitLab merge request pages (`gitlab.com` and self-hosted instances)
-- **Gitea / Forgejo support** — extend to self-hosted Gitea and Forgejo instances, with configurable instance URLs in Settings
-- **Repo-specific config** — define different category rules per repository
-- **UI/UX polish** — design improvements to the widget and options page
+Ordered, not a wish list. Each release has a reason to come when it does, and the two ordering
+constraints are called out where they apply.
+
+### v0.1.9 — pay the debt, then finish the widget
+
+Three internal fixes first, because all three sit underneath the surface the five features
+touch. Fixing the seams first means building the features once, on ground that has stopped
+moving; batching the features means one round of browser testing rather than five.
+
+1. **Extract the filename → header map** — three separate bugs have come from callers
+   disagreeing about what that map holds (a dead eye icon, a badge that jumped sides,
+   duplicate badges). It needs its own module with the contract written down.
+2. **One styling idiom for injected surfaces** — badges and tree counts are styled with
+   `cssText` strings while the widget has a stylesheet; two of the features below add UI to
+   those same surfaces.
+3. **A dry run for `release.mjs`** — it is already tested end to end in a throwaway repo; a
+   flag turns that into a command.
+4. **Sort categories by size** — category order is matching precedence, which is rarely the
+   order you want to read.
+5. **Filter shortcuts** — "show only this category" and show/hide everything, so driving the
+   eye icons on a wide config takes one click rather than eight.
+6. **Filter from the toolbar popup** — it already shows the numbers and already has a message
+   channel to the page; it just cannot act on them.
+7. **Keyboard access to the widget** — it is hover-and-click only today, so it cannot be
+   opened without a mouse at all.
+8. **Remember the filter per PR** — hidden categories reset on every navigation, which is
+   exactly wrong for someone working through a long review.
+
+### v0.2.0 — configuration that fits real repos
+
+- **Repo-specific config** — per-repo overrides need a storage schema, a resolution order
+  (repo → owner → default) and UI for all three. Import/export and the options page change
+  with it, which is why it comes before anything else that touches config.
+  **Its storage keys must include the host from day one**, even though only GitHub exists —
+  otherwise the multi-host work below means migrating every stored config.
+- **Exclude a category from the totals** — a 4,000-line lockfile currently drowns the
+  percentages that make the breakdown worth reading. Still counted, still badged, not in the
+  denominator.
+- **Show which pattern matched a file** — when a file lands in a surprising category there is
+  no way to find out why. Clicking a badge should say which glob caught it.
+- **Consolidate the types** — worth doing while the config schema is already moving.
+
+### v0.2.x — arriving from the store
+
+- **First-run experience** — install it today and nothing happens until you find a PR: no
+  welcome, no token prompt, no mention of the 60-calls-an-hour ceiling many users meet on day
+  one.
+- **UI/UX polish** — genuinely worth doing once the widget's feature set has stopped moving.
+
+### v0.3.0 — more than one host
+
+Three roadmap items are the same work done once instead of three times.
+
+- **Provider interface** — abstract the host-specific API client and DOM injection so
+  `content_script.ts` stays provider-agnostic. Worth landing on its own, with GitHub as the
+  only implementation, so the refactor is reviewable separately from the new hosts.
+- **GitHub Enterprise** — the cheapest provider: same API, same DOM, different host. It
+  validates the abstraction before a genuinely different one lands.
+- **GitLab** — different API shape and different DOM: the real test of the interface.
+  `GET /projects/:id/merge_requests/:iid/changes`.
+- **Gitea / Forgejo** — closest to GitHub's API of the three, so cheap once the seam exists.
+
+### v0.4.0 — a second browser
+
+- **Firefox / AMO** — a `browser.*` shim, a second manifest, a third build pass and a second
+  store listing. Deliberately late: every UI change made before this point would otherwise
+  need testing twice, in two stores, with two review queues.
+
+### Not scheduled
+
+- **Category pills on PR list pages** — needs a fetch per visible PR row against a
+  60-an-hour ceiling. Reasonable only with aggressive caching and a token, so it wants the
+  first-run work first.
+- **LLM integration** — category-aware PR summaries, review focus suggestions, risk flagging.
+  The open question is not the plumbing but whether a breakdown plus file paths is enough
+  context to say anything a reviewer could not see faster themselves. Worth a throwaway
+  prototype before it becomes a roadmap item.
+
+### Dropped
+
+- **GitHub classic experience support** — a second set of DOM selectors for every injected
+  surface, maintained forever, for a UI GitHub is retiring. Those selectors are already the
+  most fragile code in the project.
 
 ## Getting Started
 

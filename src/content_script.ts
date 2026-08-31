@@ -183,7 +183,13 @@ function observeChanges(): void {
     // The content script runs on all of github.com so that PR-list -> PR navigation is seen,
     // but a dashboard or a settings page has nothing for us. Detecting navigation above is
     // worth a few instructions; scheduling a pass that wakes up only to return is not.
-    if (!parseGitHubPage(window.location.pathname)) return;
+    if (!parseGitHubPage(window.location.pathname)) {
+      // Clear the way in before returning. The floating launcher is appended to document.body,
+      // so GitHub's client-side navigation does not take it with the page it belonged to — it
+      // would sit on a repository home page still offering the previous PR's breakdown.
+      removeLauncher();
+      return;
+    }
 
     if (debounceTimer !== null) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {

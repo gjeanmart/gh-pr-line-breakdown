@@ -386,6 +386,91 @@ describe("holding the popup open", () => {
   });
 });
 
+// Browsers focus an element on mousedown, so a real click arrives as focus-then-click and a
+// real Enter arrives on an already-focused element. Dispatching activation on its own — which
+// every test here used to do — hid a bug that made every activation a no-op: focus set the
+// held-open flag, and the activation handler then toggled it straight back off.
+describe("activation in the order a browser fires it", () => {
+  it("holds the popup open on click after focus", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor() as HTMLElement;
+
+    anchor.dispatchEvent(new MouseEvent("mouseenter"));
+    anchor.dispatchEvent(new FocusEvent("focus"));
+    anchor.dispatchEvent(new MouseEvent("click"));
+    anchor.dispatchEvent(new MouseEvent("mouseleave"));
+    vi.advanceTimersByTime(500);
+
+    expect(host().style.display).toBe("block");
+  });
+
+  it("holds the popup open on Enter after tabbing in", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor() as HTMLElement;
+
+    anchor.dispatchEvent(new FocusEvent("focus"));
+    anchor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+    anchor.dispatchEvent(new MouseEvent("mouseleave"));
+    vi.advanceTimersByTime(500);
+
+    expect(host().style.display).toBe("block");
+  });
+
+  it("still closes on a second click", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor() as HTMLElement;
+
+    anchor.dispatchEvent(new FocusEvent("focus"));
+    anchor.dispatchEvent(new MouseEvent("click"));
+    anchor.dispatchEvent(new MouseEvent("click"));
+
+    expect(host().style.display).toBe("none");
+  });
+
+  // Focus shows the popup, which is what makes it reachable by keyboard at all; it must not
+  // hold it, or the click that follows a mousedown has nothing left to do.
+  it("shows on focus without holding, so hover still closes it", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor() as HTMLElement;
+
+    anchor.dispatchEvent(new FocusEvent("focus"));
+    expect(host().style.display).toBe("block");
+
+    anchor.dispatchEvent(new MouseEvent("mouseleave"));
+    vi.advanceTimersByTime(500);
+    expect(host().style.display).toBe("none");
+  });
+});
+
+describe("escaping category names", () => {
+  // A name reaches four DOM sites and an imported config can carry anything config.ts admits,
+  // quotes included. data-cat beside these two was escaped; the title and the label were not.
+  it("escapes the eye's title and label", async () => {
+    const widget = await freshWidget();
+    const categories = [
+      { name: 'Docs "API"', patterns: ["*.md"] },
+      { name: "Main", patterns: [], fallback: true },
+    ];
+    widget.renderHeaderIcon(
+      buildBreakdown([{ filename: "README.md", added: 1, removed: 0 }], categories),
+      categories,
+      { onToggleCategory: () => {} }
+    );
+
+    const eye = shadow().querySelector<HTMLElement>('.cat-toggle[data-cat^="Docs"]')!;
+    expect(eye.getAttribute("title")).toContain('Docs "API"');
+    expect(eye.getAttribute("aria-label")).toContain('Docs "API"');
+    // The attribute parsed as one value rather than closing early and spilling the rest
+    expect(eye.getAttributeNames().sort()).toEqual(
+      ["aria-label", "class", "data-cat", "title"].sort()
+    );
+  });
+});
+
 describe("staying with its anchor", () => {
   // The whole reason the pin was dropped: the popup used to be placed in document
   // coordinates, so it scrolled off the top of the screen and left the reader with an open

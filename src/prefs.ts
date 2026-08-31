@@ -57,9 +57,30 @@ export async function loadPrefs(): Promise<Prefs> {
   return { sortBySize, hideEmpty };
 }
 
+/**
+ * Writes run one at a time.
+ *
+ * Every save here is a read-modify-write of one storage key holding the whole prefs object,
+ * and the two callers are independent: toggling the sort preference and hiding a category go
+ * out as separate un-awaited saves. Run concurrently they both read the same starting value
+ * and both write a full object, so whichever lands second silently discards the other's
+ * change — and the loss only shows up after a reload, which makes it a horrible thing to
+ * track down. Chaining is enough; there is no contention worth more than this.
+ */
+let queue: Promise<unknown> = Promise.resolve();
+
+function serialise<T>(work: () => Promise<T>): Promise<T> {
+  const next = queue.then(work, work);
+  // Keep the chain alive: a rejected link must not stop later writes.
+  queue = next.catch(() => {});
+  return next;
+}
+
 export async function savePrefs(update: Partial<Prefs>): Promise<void> {
-  const current = await read();
-  await chrome.storage.local.set({ [KEY]: { ...current, ...update } });
+  await serialise(async () => {
+    const current = await read();
+    await chrome.storage.local.set({ [KEY]: { ...current, ...update } });
+  });
 }
 
 /** Which categories the reader hid on this page last time they were here. */
@@ -69,6 +90,10 @@ export async function loadHiddenCategories(path: string): Promise<string[]> {
 }
 
 export async function saveHiddenCategories(path: string, hidden: string[]): Promise<void> {
+  await serialise(() => writeHiddenCategories(path, hidden));
+}
+
+async function writeHiddenCategories(path: string, hidden: string[]): Promise<void> {
   const current = await read();
   const hiddenByPath = { ...current.hiddenByPath };
 

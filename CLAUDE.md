@@ -481,10 +481,15 @@ The threshold is two rather than three because the cluster we want is small (dif
 conversations, Copilot); once those two exclusions are in place there is nothing left that a
 lower threshold wrongly matches.
 
-**When it still goes wrong, do not guess again** — `scripts/diagnose-launcher.js` pastes into
-DevTools and prints every candidate container with the counts, offsets and stickiness the
-finder saw, plus the row it would choose. Three placement attempts were spent inferring this
-markup from screenshots; the snippet answers it in one paste.
+**When it goes wrong, get the DOM rather than inferring it from a screenshot.** Four separate
+placement bugs were shipped guessing at this markup — the file-header row, the global nav, the
+far-right edge, the left-hand pair — and each round cost a reload-and-check cycle. The
+**DOM debugging** section at the end of this file has the console snippet to adapt.
+
+A standing `scripts/diagnose-launcher.js` was tried and deleted. It reimplemented
+`findStickyActionRow` so it could be pasted into a console, and was reporting the wrong chosen
+element within two commits, because the finder moved and the copy did not. A diagnostic that
+duplicates the logic it diagnoses will always drift, and one that lies is worse than none.
 
 If it finds nothing the launcher does not fail — it falls back to a floating button of its
 own (`.gh-breakdown-launcher--floating`), **bottom right**. Top right, where it started, put
@@ -666,7 +671,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 pnpm install
 pnpm run build         # outputs to dist/
-pnpm test              # vitest unit tests (241 tests)
+pnpm test              # vitest unit tests (249 tests)
 ```
 
 To load in Chrome:

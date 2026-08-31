@@ -76,15 +76,25 @@ if (pkg.version === version && manifest.version === version) {
   );
 }
 
-const existingTags = capture('git', ['tag', '--list', tag]);
-if (existingTags) {
-  fail(`Tag ${tag} already exists.`, `git tag -d ${tag}  (and delete it on the remote too)`);
+if (capture('git', ['tag', '--list', tag])) {
+  fail(`Tag ${tag} already exists locally.`, `git tag -d ${tag}`);
+}
+
+// The remote is the one that matters, and a fresh clone knows nothing about its tags. Checked
+// here because of the order further down: the version commit is pushed to main *before* the
+// tag, so a collision found at push time leaves a bump on main with no release behind it —
+// the half-finished state every other check in this block exists to prevent.
+if (capture('git', ['ls-remote', '--tags', 'origin', `refs/tags/${tag}`])) {
+  fail(
+    `Tag ${tag} already exists on origin.`,
+    `git push origin :refs/tags/${tag}  (only if that release is genuinely being redone)`
+  );
 }
 
 console.log(`  branch        ${branch}`);
 console.log(`  working tree  clean`);
 console.log(`  version       ${pkg.version} → ${version}`);
-console.log(`  tag           ${tag} is free`);
+console.log(`  tag           ${tag} is free, locally and on origin`);
 
 // ── Tests ────────────────────────────────────────────────────────────────────────────
 // Run even in a dry run: knowing the suite passes is most of what a rehearsal is for.

@@ -116,7 +116,7 @@ function buildRows(
         </div>
         <span class="stats"><span class="stat stat-added">+${stats.added.toLocaleString()}</span><span class="stat stat-removed">\u2212${stats.removed.toLocaleString()}</span></span>
         <span class="pct">${percent}%</span>
-        <button class="${eyeClass}" data-cat="${escapeAttr(category.name)}" title="${eyeTitle}" aria-label="${eyeTitle}">${eyeIcon}</button>
+        <button class="${eyeClass}" data-cat="${escapeAttr(category.name)}" title="${escapeAttr(eyeTitle)}" aria-label="${escapeAttr(eyeTitle)}">${eyeIcon}</button>
       </div>`;
     })
     .join("");
@@ -463,13 +463,20 @@ export function attachAnchor(anchor: HTMLElement): void {
   anchor.setAttribute("aria-expanded", String(isOpen()));
   anchor.addEventListener("mouseenter", () => openAt(anchor));
   anchor.addEventListener("mouseleave", () => scheduleClose());
-  anchor.addEventListener("focus", () => setHeldOpen(true, anchor));
+
+  // Focus *shows* the popup; it does not hold it open. That distinction is the whole fix for
+  // a bug where clicking closed the popup instead of opening it: browsers focus an element on
+  // mousedown, so a focus handler that set heldOpen ran before the click handler that toggles
+  // it, and the click found it already true and turned it off. Every activation was a
+  // no-op — click, Enter and Space alike — and the unit tests missed it because they
+  // dispatched activation on its own, which is not the order a browser fires.
+  anchor.addEventListener("focus", () => openAt(anchor));
   anchor.addEventListener("blur", (event) => {
     // Tabbing from the anchor into the popup's own buttons must not close it. The popup lives
     // in a shadow root, so focus lands on the host element as far as this listener can see.
     const next = (event as FocusEvent).relatedTarget;
     if (next instanceof Node && document.getElementById(HOST_ID)?.contains(next)) return;
-    if (heldOpen) setHeldOpen(false);
+    setHeldOpen(false);
   });
   anchor.addEventListener("click", (event) => {
     event.preventDefault();

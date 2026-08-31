@@ -558,8 +558,20 @@ Triggered by pushing a `v*` tag. Steps:
 ### How to cut a release
 
 ```bash
+pnpm run release X.Y.Z --dry-run   # rehearse: every check, every command, no changes
 pnpm run release X.Y.Z
 ```
+
+`release.mjs` runs every check it can **before** changing anything, because the failures that
+hurt are the half-finished ones — a bumped working tree with no commit, or a bump committed to
+the wrong branch:
+
+| Check | Why |
+| --- | --- |
+| on `main` | the push is hard-coded to `main`, so releasing elsewhere commits the bump where it will not be pushed |
+| clean working tree | the bump has to be the only thing in its commit |
+| version differs | otherwise the bump writes nothing, `git commit` finds nothing staged, and the error says nothing useful |
+| tag is free | a second `git tag` on an existing name fails late, after the commit exists |
 
 `release.mjs` will: verify a clean working tree → run tests → bump `package.json`
 and `manifest.json` → commit → tag `vX.Y.Z` → push the commit and tag to `main`.
@@ -639,9 +651,8 @@ waiting for a quiet week — see the ordered roadmap in README.md.
       contract; `badges.ts` keeps injection and the filter API
 - [x] ~~Two idioms for injected styling~~ — `src/injected.css`, injected by Chrome from the
       manifest
-- [ ] `release.mjs` has no dry run, and fails confusingly when the version already matches the
-      target (its bump commit then has nothing to commit). It is now tested end to end in a
-      throwaway repo, which is most of the value; a flag would make that a command.
+- [x] ~~`release.mjs` has no dry run~~ — `--dry-run` rehearses everything and changes nothing;
+      the confusing empty-bump failure is now a check with a message
 
 **Scheduled for v0.2.0**
 

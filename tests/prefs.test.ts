@@ -100,3 +100,46 @@ describe("remembering a filter per page", () => {
     expect(await loadPrefs()).toEqual({ sortBySize: true, hideEmpty: true });
   });
 });
+
+describe("concurrent saves", () => {
+  // The content script fires these two independently and awaits neither: onPrefsChange when
+  // the reader toggles sorting, onFilterChange when they click an eye. Both are a
+  // read-modify-write of one storage key holding the whole prefs object, so run at the same
+  // time they each read the old value and each write a full object — and whichever lands
+  // second silently drops the other's change. Only visible after a reload.
+  it("keeps both changes when a preference and a filter are saved together", async () => {
+    const both = [savePrefs({ sortBySize: true }), saveHiddenCategories("/o/r/pull/1", ["Tests"])];
+    await Promise.all(both);
+
+    expect(await loadPrefs()).toEqual({ sortBySize: true, hideEmpty: true });
+    expect(await loadHiddenCategories("/o/r/pull/1")).toEqual(["Tests"]);
+  });
+
+  it("keeps every change in a burst of saves", async () => {
+    await Promise.all([
+      savePrefs({ sortBySize: true }),
+      savePrefs({ hideEmpty: false }),
+      saveHiddenCategories("/o/r/pull/1", ["Tests"]),
+      saveHiddenCategories("/o/r/pull/2", ["Docs"]),
+    ]);
+
+    expect(await loadPrefs()).toEqual({ sortBySize: true, hideEmpty: false });
+    expect(await loadHiddenCategories("/o/r/pull/1")).toEqual(["Tests"]);
+    expect(await loadHiddenCategories("/o/r/pull/2")).toEqual(["Docs"]);
+  });
+
+  // A failing write must not wedge the queue for the rest of the session.
+  it("carries on after a write that throws", async () => {
+    const local = (chrome as unknown as { storage: { local: { set: unknown } } }).storage.local;
+    const realSet = local.set;
+    local.set = async () => {
+      throw new Error("quota");
+    };
+    await expect(savePrefs({ sortBySize: true })).rejects.toThrow("quota");
+    local.set = realSet;
+
+    await savePrefs({ hideEmpty: false });
+
+    expect(await loadPrefs()).toEqual({ sortBySize: false, hideEmpty: false });
+  });
+});

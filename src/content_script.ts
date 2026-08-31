@@ -7,8 +7,10 @@ import {
   getHiddenCategories,
   resetCategoryFilter,
   setHiddenCategories,
+  attachAnchor,
   type WidgetContext,
 } from "./widget.js";
+import { ensureLauncher, removeLauncher } from "./launcher.js";
 import { loadPrefs, savePrefs, loadHiddenCategories, saveHiddenCategories, DEFAULT_PREFS } from "./prefs.js";
 import type { Prefs } from "./prefs.js";
 import { fetchFiles } from "./github_api.js";
@@ -89,6 +91,7 @@ async function runBreakdown(): Promise<void> {
     setHiddenCategories(await loadHiddenCategories(page.path));
     clearBadges();
     clearTreeCounts();
+    removeLauncher();
     renderLoadingState(widgetContext());
     const result = await fetchFiles(page, currentConfig.githubToken);
     if (result.rate) cachedRate = result.rate;
@@ -116,6 +119,10 @@ async function runBreakdown(): Promise<void> {
     },
   });
 
+  // A second way in, for once the diffstat has scrolled out of sight. Re-checked every pass
+  // because GitHub's sticky header appears and disappears as you scroll.
+  attachAnchor(ensureLauncher());
+
   const written = (await injectBadges(cachedFiles, categories)) + injectTreeCounts(cachedFiles);
 
   // Badges and tree counts are page mutations of our own making. Left queued they schedule
@@ -124,10 +131,19 @@ async function runBreakdown(): Promise<void> {
   // its lazy rendering always follows up with more, so nothing stays missing for long.)
   if (written > 0) observer?.takeRecords();
 
-  // Re-apply any active category filters to the freshly-injected DOM
+  // Re-apply the filter to the freshly-injected DOM — in both directions.
+  //
+  // Collapsing needs re-applying because the DOM was just replaced. Expanding needs it
+  // because it can fail: the click goes through a header element we stored earlier, and
+  // GitHub re-renders those constantly, so an expand triggered from the widget may land on a
+  // stale node and do nothing. setFilesVisible keeps the file on its collapsed-by-us list
+  // when that happens, so this retries it here against a header that is current.
+  //
+  // The visible-category sweep costs nothing on a settled page: setFilesVisible skips any
+  // file it has no record of collapsing, which after a successful expand is all of them.
   const hidden = getHiddenCategories();
   for (const [catName, filenames] of filesByCategory) {
-    if (hidden.has(catName)) setFilesVisible(filenames, false);
+    setFilesVisible(filenames, !hidden.has(catName));
   }
 }
 
@@ -176,7 +192,13 @@ function observeChanges(): void {
     // The content script runs on all of github.com so that PR-list -> PR navigation is seen,
     // but a dashboard or a settings page has nothing for us. Detecting navigation above is
     // worth a few instructions; scheduling a pass that wakes up only to return is not.
-    if (!parseGitHubPage(window.location.pathname)) return;
+    if (!parseGitHubPage(window.location.pathname)) {
+      // Clear the way in before returning. The floating launcher is appended to document.body,
+      // so GitHub's client-side navigation does not take it with the page it belonged to — it
+      // would sit on a repository home page still offering the previous PR's breakdown.
+      removeLauncher();
+      return;
+    }
 
     if (debounceTimer !== null) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {

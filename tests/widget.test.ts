@@ -20,6 +20,32 @@ async function freshWidget() {
 }
 
 const host = () => document.getElementById(HOST_ID)!;
+const shadowStyle = () => host().shadowRoot!.querySelector("style")!.textContent!;
+const shadow = () => host().shadowRoot!;
+
+/**
+ * The class selectors the widget's stylesheet actually declares rules for.
+ *
+ * Comments are stripped first, and selectors are read from the text before each block. Asking
+ * whether the raw stylesheet *contains* a class name is not the same question: the block that
+ * styles the footer carries a comment naming the very classes it styles, so a broken
+ * stylesheet passed that check on its own prose.
+ */
+function styledSelectors(): string[] {
+  const css = shadowStyle().replace(/\/\*[\s\S]*?\*\//g, "");
+  return css
+    .split("}")
+    .flatMap((block) => block.split("{")[0].split(","))
+    .map((selector) => selector.trim())
+    .filter(Boolean)
+    .flatMap((selector) => selector.match(/\.[a-zA-Z0-9_-]+/g) ?? []);
+}
+
+// jsdom has no layout engine, so every rect is zero. The positioning maths is the point here,
+// so the rect is supplied.
+function stubRect(el: HTMLElement, rect: { bottom: number; right: number }): void {
+  el.getBoundingClientRect = () => ({ ...rect, top: 0, left: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}) });
+}
 
 type Widget = Awaited<ReturnType<typeof freshWidget>>;
 
@@ -266,10 +292,8 @@ describe("quota and token guidance", () => {
   });
 });
 
-describe("pinning", () => {
-  const popup = () => host().shadowRoot!.querySelector(".popup")!;
-
-  it("stays open after the cursor leaves once pinned", async () => {
+describe("holding the popup open", () => {
+  it("stays open after the cursor leaves once clicked", async () => {
     const widget = await freshWidget();
     renderRows(widget);
     const anchor = findDiffstatAnchor()!;
@@ -279,7 +303,6 @@ describe("pinning", () => {
     vi.advanceTimersByTime(500);
 
     expect(host().style.display).toBe("block");
-    expect(popup().classList.contains("pinned")).toBe(true);
   });
 
   it("closes again on a second click", async () => {
@@ -291,7 +314,6 @@ describe("pinning", () => {
     anchor.dispatchEvent(new MouseEvent("click"));
 
     expect(host().style.display).toBe("none");
-    expect(popup().classList.contains("pinned")).toBe(false);
   });
 
   it("closes on Escape", async () => {
@@ -304,18 +326,17 @@ describe("pinning", () => {
     expect(host().style.display).toBe("none");
   });
 
-  it("ignores Escape when it is not pinned", async () => {
+  it("ignores Escape when it is only hovered", async () => {
     const widget = await freshWidget();
     renderRows(widget);
-    const anchor = findDiffstatAnchor()!;
-    anchor.dispatchEvent(new MouseEvent("mouseenter"));
+    findDiffstatAnchor()!.dispatchEvent(new MouseEvent("mouseenter"));
 
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
 
     expect(host().style.display).toBe("block");
   });
 
-  it("survives a re-render while pinned", async () => {
+  it("survives a re-render while open", async () => {
     const widget = await freshWidget();
     renderRows(widget);
     findDiffstatAnchor()!.dispatchEvent(new MouseEvent("click"));
@@ -323,17 +344,260 @@ describe("pinning", () => {
     renderRows(widget);
 
     expect(host().style.display).toBe("block");
-    expect(popup().classList.contains("pinned")).toBe(true);
   });
 
-  it("tells the reader the diffstat is clickable", async () => {
+  it("makes GitHub's diffstat into a real control", async () => {
     const widget = await freshWidget();
     renderRows(widget);
     const anchor = findDiffstatAnchor() as HTMLElement;
 
-    expect(anchor.title).toBe("Click to pin the line breakdown");
+    expect(anchor.title).toBe("Line breakdown");
+    expect(anchor.getAttribute("role")).toBe("button");
+    expect(anchor.tabIndex).toBe(0);
+    expect(anchor.getAttribute("aria-expanded")).toBe("false");
+
     anchor.dispatchEvent(new MouseEvent("click"));
-    expect(anchor.title).toBe("Click to unpin the line breakdown");
+    expect(anchor.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("opens on focus and closes on blur", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor() as HTMLElement;
+
+    anchor.dispatchEvent(new FocusEvent("focus"));
+    expect(host().style.display).toBe("block");
+
+    anchor.dispatchEvent(new FocusEvent("blur"));
+    expect(host().style.display).toBe("none");
+  });
+
+  // Tab order runs from the diffstat into the popup's own buttons, and losing the popup on the
+  // way there would make every control in it unreachable by keyboard.
+  it("does not close when focus moves into the popup", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor() as HTMLElement;
+    anchor.dispatchEvent(new FocusEvent("focus"));
+
+    anchor.dispatchEvent(new FocusEvent("blur", { relatedTarget: host() }));
+
+    expect(host().style.display).toBe("block");
+  });
+});
+
+// Browsers focus an element on mousedown, so a real click arrives as focus-then-click and a
+// real Enter arrives on an already-focused element. Dispatching activation on its own — which
+// every test here used to do — hid a bug that made every activation a no-op: focus set the
+// held-open flag, and the activation handler then toggled it straight back off.
+describe("activation in the order a browser fires it", () => {
+  it("holds the popup open on click after focus", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor() as HTMLElement;
+
+    anchor.dispatchEvent(new MouseEvent("mouseenter"));
+    anchor.dispatchEvent(new FocusEvent("focus"));
+    anchor.dispatchEvent(new MouseEvent("click"));
+    anchor.dispatchEvent(new MouseEvent("mouseleave"));
+    vi.advanceTimersByTime(500);
+
+    expect(host().style.display).toBe("block");
+  });
+
+  it("holds the popup open on Enter after tabbing in", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor() as HTMLElement;
+
+    anchor.dispatchEvent(new FocusEvent("focus"));
+    anchor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+    anchor.dispatchEvent(new MouseEvent("mouseleave"));
+    vi.advanceTimersByTime(500);
+
+    expect(host().style.display).toBe("block");
+  });
+
+  it("still closes on a second click", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor() as HTMLElement;
+
+    anchor.dispatchEvent(new FocusEvent("focus"));
+    anchor.dispatchEvent(new MouseEvent("click"));
+    anchor.dispatchEvent(new MouseEvent("click"));
+
+    expect(host().style.display).toBe("none");
+  });
+
+  // Focus shows the popup, which is what makes it reachable by keyboard at all; it must not
+  // hold it, or the click that follows a mousedown has nothing left to do.
+  it("shows on focus without holding, so hover still closes it", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor() as HTMLElement;
+
+    anchor.dispatchEvent(new FocusEvent("focus"));
+    expect(host().style.display).toBe("block");
+
+    anchor.dispatchEvent(new MouseEvent("mouseleave"));
+    vi.advanceTimersByTime(500);
+    expect(host().style.display).toBe("none");
+  });
+});
+
+describe("escaping category names", () => {
+  // A name reaches four DOM sites and an imported config can carry anything config.ts admits,
+  // quotes included. data-cat beside these two was escaped; the title and the label were not.
+  it("escapes the eye's title and label", async () => {
+    const widget = await freshWidget();
+    const categories = [
+      { name: 'Docs "API"', patterns: ["*.md"] },
+      { name: "Main", patterns: [], fallback: true },
+    ];
+    widget.renderHeaderIcon(
+      buildBreakdown([{ filename: "README.md", added: 1, removed: 0 }], categories),
+      categories,
+      { onToggleCategory: () => {} }
+    );
+
+    const eye = shadow().querySelector<HTMLElement>('.cat-toggle[data-cat^="Docs"]')!;
+    expect(eye.getAttribute("title")).toContain('Docs "API"');
+    expect(eye.getAttribute("aria-label")).toContain('Docs "API"');
+    // The attribute parsed as one value rather than closing early and spilling the rest
+    expect(eye.getAttributeNames().sort()).toEqual(
+      ["aria-label", "class", "data-cat", "title"].sort()
+    );
+  });
+});
+
+describe("staying with its anchor", () => {
+  // The whole reason the pin was dropped: the popup used to be placed in document
+  // coordinates, so it scrolled off the top of the screen and left the reader with an open
+  // popup they could not see.
+  it("positions itself in viewport coordinates", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor() as HTMLElement;
+    stubRect(anchor, { bottom: 100, right: 400 });
+
+    anchor.dispatchEvent(new MouseEvent("click"));
+
+    expect(host().style.position).toBe("");
+    expect(shadowStyle()).toContain("position: fixed");
+    expect(host().style.top).toBe("108px");
+  });
+
+  it("follows its anchor as the page scrolls", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor() as HTMLElement;
+    stubRect(anchor, { bottom: 100, right: 400 });
+    anchor.dispatchEvent(new MouseEvent("click"));
+
+    stubRect(anchor, { bottom: 20, right: 400 });
+    window.dispatchEvent(new Event("scroll"));
+
+    expect(host().style.top).toBe("28px");
+  });
+
+  it("never places itself off the left edge", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor() as HTMLElement;
+    stubRect(anchor, { bottom: 10, right: 20 });
+
+    anchor.dispatchEvent(new MouseEvent("click"));
+    vi.advanceTimersByTime(50);
+
+    // offsetWidth is 0 under jsdom, so 20 - 0 = 20; the clamp is what is under test
+    expect(parseInt(host().style.left, 10)).toBeGreaterThanOrEqual(8);
+  });
+});
+
+describe("the footer controls", () => {
+  // The bug this pins: .sort-toggle and .show-all were rendered but never appeared in the
+  // stylesheet, so they fell back to the browser's default grey button. Easy to miss reading
+  // either file alone, and invisible to a test that only asks whether the button exists.
+  it("styles every control it renders", async () => {
+    const widget = await freshWidget();
+    widget.setHiddenCategories(["Tests"]);
+    renderRows(widget, { prefs: { sortBySize: false, hideEmpty: true } });
+
+    const classes = Array.from(host().shadowRoot!.querySelectorAll(".footer button"))
+      .flatMap((button) => Array.from(button.classList));
+
+    expect(classes).toEqual(["sort-toggle", "copy-md", "toggle-empty", "show-all"]);
+    for (const name of classes) expect(styledSelectors()).toContain(`.${name}`);
+  });
+
+  it("offers Show all once something is hidden, and not before", async () => {
+    const widget = await freshWidget();
+
+    renderRows(widget);
+    expect(shadow().querySelector(".show-all")).toBeNull();
+
+    widget.setHiddenCategories(["Tests"]);
+    renderRows(widget);
+    expect(shadow().querySelector(".show-all")).not.toBeNull();
+  });
+
+  // The label names the action, like "Hide empty" and "Copy markdown" beside it. Labelled
+  // with the state instead, a working toggle read as a stuck one.
+  it("labels the sort control with what clicking will do", async () => {
+    const widget = await freshWidget();
+
+    renderRows(widget, { prefs: { sortBySize: false, hideEmpty: true } });
+    expect(shadow().querySelector(".sort-toggle")!.textContent).toBe("Sort by size");
+
+    renderRows(widget, { prefs: { sortBySize: true, hideEmpty: true } });
+    expect(shadow().querySelector(".sort-toggle")!.textContent).toBe("Sort in order");
+  });
+});
+
+describe("sorting", () => {
+  // Config order and size order coincide on plenty of real PRs — the biggest category is
+  // often the first one listed — so this uses a breakdown where they cannot.
+  const MIXED = [
+    { filename: "a.test.ts", added: 500, removed: 0 },
+    { filename: "README.md", added: 5, removed: 0 },
+    { filename: "src/app.ts", added: 50, removed: 0 },
+  ];
+
+  const visibleNames = () =>
+    Array.from(host().shadowRoot!.querySelectorAll(".row:not(.row--empty) .cat-name"))
+      .map((el) => el.textContent!.trim());
+
+  function render(widget: Widget, sortBySize: boolean): void {
+    const { categories } = DEFAULT_CONFIG;
+    widget.renderHeaderIcon(buildBreakdown(MIXED, categories), categories, {
+      prefs: { sortBySize, hideEmpty: true },
+    });
+  }
+
+  it("follows category order by default, which is matching precedence", async () => {
+    const widget = await freshWidget();
+
+    render(widget, false);
+
+    expect(visibleNames()).toEqual(["Main", "Tests", "Documentation"]);
+  });
+
+  it("puts the biggest category first when asked", async () => {
+    const widget = await freshWidget();
+
+    render(widget, true);
+
+    expect(visibleNames()).toEqual(["Tests", "Main", "Documentation"]);
+  });
+
+  it("reorders on click, without the content script", async () => {
+    const widget = await freshWidget();
+    render(widget, false);
+
+    shadow().querySelector<HTMLElement>(".sort-toggle")!.click();
+
+    expect(visibleNames()).toEqual(["Tests", "Main", "Documentation"]);
   });
 });
 
@@ -382,80 +646,18 @@ describe("copy as markdown", () => {
   });
 });
 
-describe("the pin control", () => {
-  const pinButton = () => host().shadowRoot!.querySelector<HTMLElement>(".pin-toggle")!;
-
-  it("sits in the header, so pinning is findable without a tooltip", async () => {
-    const widget = await freshWidget();
-
-    renderRows(widget);
-
-    const button = pinButton();
-    expect(button.closest(".title")).not.toBeNull();
-    expect(button.getAttribute("aria-pressed")).toBe("false");
-    expect(button.getAttribute("aria-label")).toContain("Pin");
-    expect(button.querySelector("svg")).not.toBeNull();
-  });
-
-  it("pins from the footer button", async () => {
-    const widget = await freshWidget();
-    renderRows(widget);
-
-    pinButton().click();
-    findDiffstatAnchor()!.dispatchEvent(new MouseEvent("mouseleave"));
-    vi.advanceTimersByTime(500);
-
-    expect(host().style.display).toBe("block");
-    expect(pinButton().getAttribute("aria-pressed")).toBe("true");
-  });
-
-  it("releases from the footer button", async () => {
-    const widget = await freshWidget();
-    renderRows(widget);
-    pinButton().click();
-
-    pinButton().click();
-
-    expect(host().style.display).toBe("none");
-    expect(pinButton().getAttribute("aria-pressed")).toBe("false");
-  });
-
-  it("keeps its state in step with a pin from the diffstat", async () => {
-    const widget = await freshWidget();
-    renderRows(widget);
-
-    findDiffstatAnchor()!.dispatchEvent(new MouseEvent("click"));
-
-    expect(pinButton().getAttribute("aria-pressed")).toBe("true");
-    expect(pinButton().getAttribute("aria-label")).toContain("Unpin");
-  });
-
-  it("still reads correctly after a re-render", async () => {
-    const widget = await freshWidget();
-    renderRows(widget);
-    pinButton().click();
-
-    renderRows(widget);
-
-    expect(pinButton().getAttribute("aria-pressed")).toBe("true");
-  });
-});
-
 describe("reading controls", () => {
   const shadow = () => host().shadowRoot!;
   const names = () =>
     Array.from(shadow().querySelectorAll(".cat-name")).map((el) => el.textContent?.trim());
 
-  it("shows categories in config order, and biggest-first when the preference says so", async () => {
+  // The ordering itself is covered in "sorting", against a breakdown where config order and
+  // size order actually differ. This file's own FILES has Main at 13 lines and Tests at 6, so
+  // both orders agree and it can only check the default.
+  it("shows categories in config order by default", async () => {
     const ordered = await freshWidget();
     renderRows(ordered);
     expect(names()!.slice(0, 2)).toEqual(["Main", "Tests"]);
-
-    const sorted = await freshWidget();
-    renderRows(sorted, { prefs: { sortBySize: true, hideEmpty: true } });
-    // Main is 13 lines, Tests 6, so this order is the same either way — assert on the
-    // control instead, which is what the reader actually toggles
-    expect(shadow().querySelector(".sort-toggle")!.textContent).toBe("By size");
   });
 
   it("tells the content script when the sort preference changes", async () => {
@@ -466,7 +668,7 @@ describe("reading controls", () => {
     shadow().querySelector<HTMLElement>(".sort-toggle")!.click();
 
     expect(onPrefsChange).toHaveBeenCalledWith({ sortBySize: true });
-    expect(shadow().querySelector(".sort-toggle")!.textContent).toBe("By size");
+    expect(shadow().querySelector(".sort-toggle")!.textContent).toBe("Sort in order");
   });
 
   it("persists the empty-category toggle too", async () => {

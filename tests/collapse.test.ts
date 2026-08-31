@@ -113,3 +113,63 @@ describe("expandFile", () => {
     expect(clicks()).toBe(0);
   });
 });
+
+
+// A file with hidden context lines is resolved from its "Expand all lines" button, which is
+// in the diff *body* — so findHeaderContainer walks up to the whole file section, and the
+// search then turns up the header chevron alongside controls belonging to the body.
+//
+// Giving up on that was why hiding a category collapsed some of its files and not others:
+// expanded files failed, already-collapsed ones (whose bodies are not rendered, so there is
+// nothing else to find) worked.
+describe("more than one candidate in the handed scope", () => {
+  it("takes the control GitHub names, not the one in the body", () => {
+    document.body.innerHTML = `
+      <div id="file">
+        <div id="header">
+          <button aria-label="Collapse file"><svg class="octicon octicon-chevron-down"></svg></button>
+          <h3>src/popup/popup.html</h3>
+        </div>
+        <div id="body">
+          <button aria-label="Expand all lines"><svg class="octicon octicon-chevron-down"></svg></button>
+        </div>
+      </div>`;
+    const clicked: string[] = [];
+    for (const button of Array.from(document.querySelectorAll("button"))) {
+      button.addEventListener("click", () => clicked.push(button.getAttribute("aria-label")!));
+    }
+
+    expect(collapseFile(document.getElementById("file")!)).toBe(true);
+    expect(clicked).toEqual(["Collapse file"]);
+  });
+
+  it("falls back to document order when nothing is named", () => {
+    document.body.innerHTML = `
+      <div id="file">
+        <div id="header"><button id="own"><svg class="octicon octicon-chevron-down"></svg></button></div>
+        <div id="body"><button id="hunk"><svg class="octicon octicon-chevron-down"></svg></button></div>
+      </div>`;
+    const clicked: string[] = [];
+    for (const id of ["own", "hunk"]) {
+      document.getElementById(id)!.addEventListener("click", () => clicked.push(id));
+    }
+
+    collapseFile(document.getElementById("file")!);
+
+    // A file's header precedes its body, so its own control cannot be the second one found
+    expect(clicked).toEqual(["own"]);
+  });
+
+  // The safety rule that motivated giving up in the first place still holds once we climb:
+  // several controls up there really can mean several files.
+  it("still refuses after climbing into a container of several files", () => {
+    document.body.innerHTML = `
+      <div id="list">
+        <div><button aria-label="Collapse file"><svg class="octicon octicon-chevron-down"></svg></button></div>
+        <div><button aria-label="Collapse file"><svg class="octicon octicon-chevron-down"></svg></button></div>
+        <div id="name"><h3>src/app.ts</h3></div>
+      </div>`;
+
+    expect(collapseFile(document.getElementById("name")!)).toBe(false);
+  });
+});

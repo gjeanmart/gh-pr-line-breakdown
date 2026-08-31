@@ -116,6 +116,8 @@
     }
     .toggle-empty:hover { text-decoration: underline; }
 
+    /* Four children, four columns. The eye used to be a fifth child against four columns,
+       so grid put it on an implicit second row underneath the category name. */
     .row {
       display: grid;
       grid-template-columns: 1fr 52px 52px 30px;
@@ -123,12 +125,16 @@
       gap: 5px;
     }
 
+    /* The eye sits with the label it acts on, not in a column of its own: at 300px wide
+       there is no room for a fifth column, and a control this far from its subject reads
+       as belonging to the row's numbers instead. */
     .cat-info {
       display: flex;
       align-items: center;
       gap: 6px;
       min-width: 0;
     }
+    .cat-label { min-width: 0; }
     .cat-dot {
       width: 10px;
       height: 10px;

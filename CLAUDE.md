@@ -19,6 +19,7 @@ gh-pr-line-breakdown/
 │   ├── content_script.ts   # injected on github.com/*/pull/* pages
 │   ├── widget.ts           # hover popup rendering (anchored to diffstat)
 │   ├── anchor.ts           # locates GitHub's +N −N diffstat element (DOM-only, testable)
+│   ├── launcher.ts         # second way in: a button in GitHub's sticky file toolbar
 │   ├── collapse.ts         # drives GitHub's own per-file collapse control
 │   ├── color.ts            # category colour safety + readable badge text (pure)
 │   ├── html.ts             # escapeHtml / escapeAttr, shared by all three UIs (pure)
@@ -45,6 +46,7 @@ gh-pr-line-breakdown/
 ├── tests/
 │   ├── matcher.test.ts     # vitest unit tests for matcher logic
 │   ├── anchor.test.ts      # jsdom tests for diffstat anchor detection
+│   ├── launcher.test.ts    # jsdom: placement, fallback, and driving the popup
 │   ├── widget.test.ts      # jsdom tests for popup hover behaviour
 │   ├── collapse.test.ts    # jsdom tests for the collapse control
 │   ├── page.test.ts        # URL parsing (pure, no DOM)
@@ -203,20 +205,22 @@ inactive one with a container query, so an invisible clone would otherwise win t
 jsdom, which has no layout engine — that would make the module untestable.
 
 The shadow host (`div#gh-line-breakdown-host`) is appended to `document.body` with
-`position: absolute`. `ensureShadow()` only reuses its cached root while that root's host is
+`position: fixed` — viewport coordinates, so the popup follows its anchor while the page
+scrolls (see **Two ways in**, below). `ensureShadow()` only reuses its cached root while that root's host is
 still the element in the document — otherwise anything that replaced the page body would
 leave every later render writing into a detached tree, permanently. The shadow root contains the `<style>` block and a `.popup` div.
 This avoids `overflow: hidden` clipping from ancestor containers and fully isolates
 the widget styles from GitHub's page.
 
-**Event listener cleanup**: `AbortController` is used to tear down `mouseenter`/`mouseleave`
-listeners on both the anchor and the host whenever the anchor changes (avoids accumulating
-duplicate listeners across React re-renders).
+**Never opened by rendering**: `renderLoadingState()`, `renderHeaderIcon()` and
+`renderError(kind)` only write content into the shadow root — they never change `display`.
+Auto-showing on load used to pop the widget open every time you navigated from a PR list into
+a PR, which is exactly when nobody asked for it.
 
-**Hover-only**: the popup is opened by hover and nothing else. `renderLoadingState()`,
-`renderHeaderIcon()` and `renderError(kind)` only write content into the shadow root — they
-never change `display`. Auto-showing on load used to pop the widget open every time you
-navigated from a PR list into a PR, which is exactly when nobody asked for it.
+**The diffstat is optional.** `setContent` used to bail when `findDiffstatAnchor` came up
+empty, which would have made the launcher open an empty box on exactly the pages it exists
+for. It now renders regardless, and the anchor-specific work (the pointer cursor, the error
+dot, `bindDiffstatAnchor`) is what is conditional.
 
 Because of that, a failure needs a signal outside the popup: `renderError` puts a 7px red dot
 (`.gh-breakdown-alert`, in GitHub's own danger colour) on the diffstat chip, and `setContent`
@@ -233,8 +237,25 @@ anchored as it changes height (loading spinner -> full row list).
 - Each row: category name | N files (gray, 11px) | bar | +added −removed (paired in a
   flex container, `min-width: 48px` each for column alignment) | % | eye icon button
 - `CategoryStats` includes a `files` counter (incremented per file in `buildBreakdown`)
+**Where the eye sits differs by surface, on purpose.** The widget has room for a column of
+its own, so the eye is the last of six and lines up down the popup. The extension popup is
+300px wide and has four columns, so the eye rides inside `.cat-info`, next to the label it
+acts on. It was briefly a fifth child against those four columns, which is not an overflow —
+grid opens an implicit *row*, so the eye appeared on a second line underneath the category
+name. Child count and column count have to agree.
+
 - Rows with 0 lines get a `row--empty` class and are hidden by default via `.rows.hide-empty .row--empty { display: none; }`.
   A footer toggle link ("Show N empty" / "Hide empty") lets the user reveal them.
+- **Every footer control is a link, and one CSS rule covers all four.** `.sort-toggle` and
+  `.show-all` were once rendered without appearing in the stylesheet at all, so they fell back
+  to the browser's default grey button: the sort control looked permanently pressed, and
+  "Show all" did not read as the link beside it. `widget.test.ts` now parses the stylesheet's
+  selectors and asserts every rendered footer button has a rule — comments stripped first,
+  because the first version of that test was satisfied by a comment naming the classes.
+- **The sort control is labelled with the action** ("Sort by size" / "Sort in order"), matching
+  "Hide empty" and "Copy markdown" beside it. Labelled with the state, a working toggle read as
+  a stuck one — the more so because config order and size order coincide on many real PRs,
+  which is what `describe("sorting")` uses a purpose-built breakdown to avoid.
   State is tracked in the `hideEmpty` module variable (persists across hover open/close).
   The same pattern is implemented in the extension popup (`popup.ts` / `popup.html`).
 
@@ -312,9 +333,22 @@ tooltip instead of `aria-label`.
 
 It also **climbs**: starting from the element it was handed (see the warning above — usually
 the file-path section, whose subtree does not contain the chevron), it walks up to 4 levels
-until a scope contains exactly one control. Zero means keep climbing; more than one means it
-has reached a container holding several files, and it gives up rather than collapse the
-wrong one. Shipping this without the climb is what broke the eye icon on both page types in
+until a scope contains a control. Zero means keep climbing.
+
+**More than one means different things depending on whether it has climbed yet**, and
+conflating the two is why hiding a category collapsed some of its files and left others open:
+
+- **In the scope it was handed**, several controls mean one file with several controls. A file
+  with hidden context lines is resolved by `badges.ts` from its "Expand all lines" button,
+  which lives in the diff *body*, so `findHeaderContainer` walks up to the whole file section
+  — and searching that subtree finds the header chevron next to whatever the body holds.
+  `pickToggle` takes the one GitHub names ("Collapse file" / "Expand file"), and failing that
+  the first in document order, since a file's header precedes its body. Giving up here meant
+  every *expanded* file in a hidden category stayed open while the already-collapsed ones
+  worked — their bodies are not rendered, so there was nothing else to find, and the pattern
+  looked like nothing at all from the outside.
+- **After climbing**, several controls really can mean several files, and collapsing the wrong
+  one is worse than collapsing none. That case still refuses. Shipping this without the climb is what broke the eye icon on both page types in
 v0.1.6-dev — every synthetic unit test passed, because they were written against markup
 where the control sat inside the header element.
 
@@ -324,11 +358,38 @@ header lost its bottom border — and the hand-rolled ancestor walk (`diffTarget
 pages, "first ancestor whose parent has >1 children" on commit pages) never worked on
 commit pages at all.
 
+**A stale header is not detectably broken from the inside.** `setFilesVisible` checks
+`header.isConnected` before touching anything, because a detached header still carries its
+chevron: `findCollapseToggle` finds one, clicking it reports success, and nothing the reader
+can see changes. Rule 4 says callers tolerate staleness — this is what tolerating it costs.
+
+Skipping leaves the file on the collapsed-by-us list, and the content script now re-applies
+the filter in **both** directions each pass, so the expand is retried against a header the
+live DOM contains. Cheap on a settled page: `setFilesVisible` skips any file it has no record
+of collapsing.
+
+Without that pair, "Show all" cleared the filter, removed its own button and left every file
+collapsed — the record of what to reopen was discarded on a click that had done nothing, and
+nothing was left that knew to try again.
+
 `collapseFile` returns `true` only when it actually clicked, so `filteredFiles: Set<string>`
 holds exactly the files *we* collapsed and the filter never expands a file the user (or
-GitHub, for large diffs) had already collapsed. `setFilesVisible` also skips files already
-in `filteredFiles`, so re-applying an active filter after a DOM refresh does not slam shut
-a file the user deliberately expanded inside a hidden category.
+GitHub, for large diffs) had already collapsed. That record governs **expanding only**.
+
+**Collapsing is enforced every pass, not recorded and trusted.** `setFilesVisible` used to
+skip any file already in `filteredFiles`, meaning to protect a file the reader had
+deliberately expanded inside a hidden category. The record cannot carry that meaning: our
+collapse is a *click*, not state GitHub keeps, so one of its re-renders restores the file to
+expanded — and the skip then guaranteed nothing would ever collapse it again. Files whose
+collapse happened to survive stayed collapsed, so hiding a category appeared to work on some
+files and not others, with no pattern visible from the outside. Three wrong diagnoses came
+from looking for that pattern in GitHub's markup; the bug was in this state machine, and a
+test that flips a chevron back reproduces it in four lines.
+
+The cost of enforcing is one `findCollapseToggle` per file in a hidden category per pass;
+`collapseFile` clicks nothing when the file is already collapsed. The trade is that expanding
+a file inside a hidden category no longer sticks — the next pass closes it. Unhide the
+category to read it.
 
 ### File tree line counts — `src/file_tree.ts`
 
@@ -393,12 +454,103 @@ eight on the default config.
 which owns the page; the content script applies it, syncs the widget's state and remembers it.
 The popup renders from the `hidden` list the content script returns, so both surfaces agree.
 
-### Keyboard access
+### Two ways in — `attachAnchor` and `src/launcher.ts`
 
-GitHub's diffstat is not interactive, so nothing here was reachable without a mouse. The
-anchor now carries `tabindex="0"`, `role="button"` and `aria-expanded`, and Enter or Space
-pins the popup open — after which everything inside it is focusable in the normal way, and
-Escape closes it.
+The diffstat lives in the page header, so it is gone the moment you scroll into the diff —
+which is when you most want to know what you are looking at. `src/launcher.ts` adds a second
+anchor: our icon, placed in the row of icon buttons in GitHub's sticky file toolbar.
+
+`attachAnchor(el)` is the single place the behaviour lives — hover to open, click or
+Enter/Space to hold open, Escape or a second click to close, `aria-expanded` throughout. It is
+called for GitHub's diffstat and for our launcher, so the two are one popup with two ways in
+rather than two implementations that drift. Notes on it:
+
+- The host is looked up **per event**, never captured. `ensureShadow` replaces the host
+  whenever something tore the old one out of the document, and a captured reference would
+  leave every listener bound here writing into a detached node for the rest of the session.
+- `anchors` is a `Set`, pruned of detached nodes in `applyOpenState`. React replaces the
+  diffstat freely, so without that it would hold every node GitHub had ever rendered.
+- `blur` checks `relatedTarget`: tab order runs from the diffstat into the popup's own
+  buttons, and closing on the way there makes every control in it keyboard-unreachable.
+- **Escape is bound with the host**, not with the diffstat. Bound to the anchor, a popup opened
+  from the launcher on a page with no diffstat could not be dismissed from the keyboard.
+
+**Placement is behavioural, not a class-name guess.** Every selector guess in this project has
+eventually broken (the anchor in v0.1.6, the badge twice since), and the Files-changed toolbar
+is client-rendered, so there is no fixture to check a guess against. `findStickyActionRow`
+looks for what the cluster *is*: a container with at least two controls beneath it and a
+`position: sticky | fixed` ancestor within eight levels. Nested containers all qualify at once
+— the tight cluster, the toolbar holding it, the row holding that — so only the **innermost**
+are kept, and the highest of those wins.
+
+Two details there are both scars:
+
+- **Controls are `button, [role="button"], a[aria-label]`,** not `button[aria-label]`. The
+  toolbar mixes plain buttons, anchors carrying the accessible name, and elements Primer gives
+  a button role; the narrow selector matched none of them.
+- **Controls are grouped by any ancestor within `GROUPING_DEPTH` (3), not by direct parent.**
+  Primer wraps IconButtons in elements of their own, so the buttons in one visual row
+  frequently do not share a parent. Counting direct children found no row at all, which is how
+  the launcher ended up floating on a page whose toolbar was right there.
+- **The rightmost cluster in the toolbar row wins.** A toolbar has controls at both ends — the
+  sidebar toggle and the branch picker on the left, the action icons on the right — and it is
+  the right-hand group our icon belongs to. `ROW_BAND` (32px below the highest candidate)
+  narrows the choice to that one row first, so a cluster further down the diff cannot win by
+  reaching further right. Choosing the highest instead landed the launcher in the left-hand
+  pair, where it wrapped onto a second line under the sidebar toggle.
+- **Innermost wins, and vertical offset only picks the row.** Choosing by offset alone looks correct
+  and is not: a taller wrapper starts *above* the cluster inside it, so "highest on the page"
+  reliably picks the widest possible container. That put the launcher at the far right edge of
+  the toolbar, several hundred pixels of empty space from the buttons it belongs with.
+- **`placeIn` inserts after the last control, rather than appending to the container.** Same
+  bug from the other side: a flex row with its icons bunched at one end is much wider than
+  them, and appending lands at the far edge. The insertion point is the container's direct
+  child that holds the last control, so a wrapped button gets a sibling and not a passenger.
+
+Two exclusions carry most of the weight, and both come from getting it wrong first:
+
+- **Per-file diff headers** (`FILE_LEVEL`, the same list `anchor.ts` uses) are sticky too, and
+  carry their own cluster of icon buttons — Viewed, comment, the overflow menu. The first
+  version put our icon at the right-hand end of the first file in the diff.
+- **GitHub's global navigation** — search, the plus menu, issues, the inbox, the avatar — is
+  sticky, button-rich, and the topmost sticky thing on the page, so "highest wins" alone would
+  land the icon next to the user's avatar. It sits outside `<main>` and the PR's own toolbar
+  sits inside it, which separates them without naming a class (`PAGE_CONTENT`).
+
+The threshold is two rather than three because the cluster we want is small (diff settings,
+conversations, Copilot); once those two exclusions are in place there is nothing left that a
+lower threshold wrongly matches.
+
+**When it goes wrong, get the DOM rather than inferring it from a screenshot.** Four separate
+placement bugs were shipped guessing at this markup — the file-header row, the global nav, the
+far-right edge, the left-hand pair — and each round cost a reload-and-check cycle. The
+**DOM debugging** section at the end of this file has the console snippet to adapt.
+
+A standing `scripts/diagnose-launcher.js` was tried and deleted. It reimplemented
+`findStickyActionRow` so it could be pasted into a console, and was reporting the wrong chosen
+element within two commits, because the finder moved and the copy did not. A diagnostic that
+duplicates the logic it diagnoses will always drift, and one that lies is worse than none.
+
+If it finds nothing the launcher does not fail — it falls back to a floating button of its
+own (`.gh-breakdown-launcher--floating`), **bottom right**. Top right, where it started, put
+it squarely on top of GitHub's global navigation: ugly, and covering controls the reader
+wanted. The reader always gets a way in.
+
+`ensureLauncher()` exits immediately when the launcher is already hosted and connected. That
+search reads every aria-labelled button on the page — one per file header on a large PR — and
+the content script calls it after every settled batch of mutations.
+
+### Positioning
+
+`positionHost` writes **viewport** coordinates and `openAt` subscribes to `scroll` and
+`resize`, so the popup tracks its anchor. It used to be placed in document coordinates
+(`rect.bottom + window.scrollY`), which is why an open popup slid off the top of the screen as
+soon as you scrolled down into the diff. `left` is clamped to a minimum of 8px so a narrow
+window cannot push it off the left edge.
+
+That was also the end of the pin. Pinning a popup that scrolls away from you is not a feature;
+the launcher is the real answer, because it is reachable at any scroll depth. The internal
+"held open" state remains — `setHeldOpen` — since focus and Escape still need it.
 
 ### Rate limit surfacing
 
@@ -421,12 +573,10 @@ There are two different jobs here, and they belong in different places:
   button to the options page, labelled "Add a token" or "Check your token" depending on
   `hasToken` — being sent to a field you already filled in is its own dead end.
 
-### Pinning and copying
+### Copying
 
-Clicking the anchor toggles `pinned`; a pinned popup ignores `mouseleave` and takes an accent
-border, and Escape releases it. The anchor gets a `title` so the interaction is discoverable.
-Both the pinned class and the copy button are re-applied after every render, since
-`setContent` replaces the popup's contents wholesale.
+The copy button is re-bound after every render, since `setContent` replaces the popup's
+contents wholesale.
 
 `toMarkdown()` in `summary.ts` renders non-empty categories plus a bold total row, and appends
 a note when the file list was capped. Clipboard writes need a focused document, so the button
@@ -465,8 +615,9 @@ appearance rather than to nothing. Custom properties **inherit through a shadow 
 are **not** reset by `all: initial`, which is why this works inside the widget's shadow root.
 
 **Where those styles live.** The widget keeps its stylesheet inside its shadow root, which is
-what a self-contained popup wants. The three single elements placed inside GitHub's own layout
-— the header badges, the tree counts, the error dot — are styled by **`src/injected.css`**,
+what a self-contained popup wants. The four things placed inside GitHub's own layout
+— the header badges, the tree counts, the error dot, the toolbar launcher — are styled by
+**`src/injected.css`**,
 declared in `manifest.json` under `content_scripts.css` so **Chrome injects it**: no injection
 code, and nothing for a page's CSP to object to. The only inline styles left are the ones that
 are data rather than style — a badge's own category colour, and the widget host's `display`,
@@ -560,7 +711,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 pnpm install
 pnpm run build         # outputs to dist/
-pnpm test              # vitest unit tests (213 tests)
+pnpm test              # vitest unit tests (257 tests)
 ```
 
 To load in Chrome:
@@ -726,6 +877,24 @@ that drops the element under test is worse than no fixture, because it makes a p
 lie. `tests/filter.test.ts` exists specifically to drive badge injection and collapse
 *together* over this markup, which is the seam where per-function tests agreed with each
 other and disagreed with GitHub.
+
+## Debugging the collapse filter
+
+Set the flag in the page console and reload:
+
+```js
+localStorage.setItem("glb-debug", "1");   // localStorage.removeItem("glb-debug") to stop
+```
+
+`setFilesVisible` then logs one line per file saying what it did and why — no header stored,
+header stale, no control found (with how far it climbed and whether the scope was ambiguous),
+or the control it found and the file's current state.
+
+**This logs from inside the real code path, not from a copy of it.** A standalone console
+script was tried first and deleted: it reimplemented `findStickyActionRow`, and was reporting
+the wrong answer within two commits because the code moved and the copy did not.
+Instrumentation that ships with the thing it describes cannot drift. `src/debug.ts` is the
+flag; it reads `localStorage` once and is a no-op when unset.
 
 ## DOM debugging
 

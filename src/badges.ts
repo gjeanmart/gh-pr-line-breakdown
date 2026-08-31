@@ -1,7 +1,8 @@
 import type { Category } from "./config.js";
 import type { FileEntry } from "./matcher.js";
 import { classifyFile } from "./matcher.js";
-import { collapseFile, expandFile } from "./collapse.js";
+import { collapseFile, expandFile, searchCollapseToggle } from "./collapse.js";
+import { debug, debugEnabled } from "./debug.js";
 import { readableTextColor, safeCssColor } from "./color.js";
 import {
   rememberHeader,
@@ -147,21 +148,57 @@ export function restoreFilteredFiles(): void {
   }
 }
 
+/** Why one file did or did not move. Runs only with the debug flag set. */
+function traceFile(filename: string, header: HTMLElement | undefined, visible: boolean): void {
+  const want = visible ? "expand" : "collapse";
+  if (!header) return debug(want, filename, "— no header stored (badge never resolved it)");
+  if (!header.isConnected) return debug(want, filename, "— header is stale, will retry", header);
+
+  const { toggle, reason, levels } = searchCollapseToggle(header);
+  if (!toggle) return debug(want, filename, `— no control: ${reason}`, header);
+
+  const state = toggle.collapsed ? "collapsed" : "expanded";
+  const ours = wasCollapsedByUs(filename) ? "ours" : "not ours";
+  debug(want, filename, `— control found ${levels} level(s) up, file is ${state}, ${ours}`, toggle.button);
+}
+
 export function setFilesVisible(filenames: string[], visible: boolean): void {
   for (const filename of filenames) {
     const header = headerFor(filename);
-    if (!header) continue;
+
+    if (debugEnabled()) traceFile(filename, header, visible);
+
+    // Rule 4 in file_headers.ts: stored headers go stale, and tolerating that is the caller's
+    // job. It cannot be skipped here, because a detached header is not detectably broken from
+    // the inside — it still carries its chevron, so findCollapseToggle finds one and clicking
+    // it reports success while changing nothing the reader can see. That is what made
+    // "Show all" clear the filter, remove its own button, and leave every file collapsed.
+    //
+    // Skipping leaves the file on its collapsed-by-us list, so the next pass retries against
+    // a header the current DOM actually contains.
+    if (!header?.isConnected) continue;
 
     if (!visible) {
-      // Skip files we already collapsed. content_script re-applies active filters after
-      // every DOM refresh, and without this a file the user deliberately expanded inside
-      // a hidden category would be slammed shut again on the next mutation.
-      if (wasCollapsedByUs(filename)) continue;
+      // Enforce the filter every time, rather than trusting a record of having enforced it
+      // before. This used to skip anything already on the collapsed-by-us list, to avoid
+      // slamming shut a file the reader had deliberately expanded inside a hidden category.
+      // The record cannot carry that meaning: our collapse is a click, not state GitHub
+      // keeps, so its own re-render restores the file to expanded — after which the file sat
+      // open inside a hidden category and the skip guaranteed nothing would ever fix it.
+      // Files whose collapse happened to survive stayed collapsed, which is what made the
+      // failure look arbitrary from the outside.
+      //
+      // collapseFile is a no-op on an already-collapsed file, so re-applying costs one
+      // findCollapseToggle and clicks nothing.
       if (collapseFile(header)) markCollapsedByUs(filename);
     } else {
       if (!wasCollapsedByUs(filename)) continue;
-      expandFile(header);
-      forgetCollapsedByUs(filename);
+      // Forget only once it is genuinely open. Forgetting unconditionally is what made
+      // "Show all" look broken: a stale header makes expandFile a no-op, so the file stayed
+      // collapsed while the record of having collapsed it was thrown away — after which
+      // nothing knew to try again, and the reader was left with a collapsed category and no
+      // control to undo it. Kept, the next pass retries against a refreshed header.
+      if (expandFile(header)) forgetCollapsedByUs(filename);
     }
   }
 }

@@ -11,7 +11,6 @@ const HOST_ID = "gh-line-breakdown-host";
 
 let currentAnchor: Element | null = null;
 let shadowRoot: ShadowRoot | null = null;
-let listenerController: AbortController | null = null;
 let prefs: Prefs = { ...DEFAULT_PREFS };
 let showErrorMarker = false;
 
@@ -38,9 +37,14 @@ export type WidgetContext = {
 
 let context: WidgetContext = {};
 
-// Pinned popups ignore mouseleave. Hover is right for opening; it is not right for reading
-// nine rows, which is why this exists.
-let pinned = false;
+// Held open by something other than the pointer — a keyboard press, or a click on the
+// launcher. There is no pin control any more: pinning a popup anchored to the page header only
+// left it off-screen the moment you scrolled into the diff, which is when you wanted it. The
+// sticky launcher solves that properly, by being reachable at any scroll depth.
+let heldOpen = false;
+// Which element the popup is currently pointing at — the diffstat, or the launcher.
+let activeAnchor: HTMLElement | null = null;
+const anchors = new Set<HTMLElement>();
 // Kept so the copy button can render markdown without recomputing the breakdown
 let lastSummary: Summary | null = null;
 
@@ -62,17 +66,6 @@ const MODIFIER =
   typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform ?? "")
     ? "\u2325"
     : "Alt";
-
-// A pushpin: head and needle. Two primitives, so it cannot render as garbage the way
-// hand-copied path data can, and the filled head reads as "on" at 13px.
-const PIN_OUTLINE =
-  `<svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">` +
-  `<circle cx="8" cy="5.6" r="3.4" fill="none" stroke="currentColor" stroke-width="1.6"/>` +
-  `<line x1="8" y1="9.4" x2="8" y2="14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`;
-const PIN_FILLED =
-  `<svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">` +
-  `<circle cx="8" cy="5.6" r="3.4" fill="currentColor"/>` +
-  `<line x1="8" y1="9.4" x2="8" y2="14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
 
 const TITLE_ICON =
   `<svg class="title-icon" width="14" height="14" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">` +
@@ -123,7 +116,7 @@ function buildRows(
         </div>
         <span class="stats"><span class="stat stat-added">+${stats.added.toLocaleString()}</span><span class="stat stat-removed">\u2212${stats.removed.toLocaleString()}</span></span>
         <span class="pct">${percent}%</span>
-        <button class="${eyeClass}" data-cat="${escapeAttr(category.name)}" title="${eyeTitle}" aria-label="${eyeTitle}">${eyeIcon}</button>
+        <button class="${eyeClass}" data-cat="${escapeAttr(category.name)}" title="${escapeAttr(eyeTitle)}" aria-label="${escapeAttr(eyeTitle)}">${eyeIcon}</button>
       </div>`;
     })
     .join("");
@@ -134,11 +127,14 @@ function buildRows(
     summary.emptyCount > 0
       ? `<button class="toggle-empty">${prefs.hideEmpty ? `Show ${summary.emptyCount} empty` : "Hide empty"}</button>`
       : "";
+  // Labelled with the action, not the state. "By size" next to "Hide empty" and "Copy
+  // markdown" — two labels that describe what clicking does — read as a state badge, which
+  // made a working toggle look stuck, especially while it was styled as a pressed button.
   const sortToggle = `<button class="sort-toggle" title="${
     prefs.sortBySize
-      ? "Sorted biggest first — switch back to category order"
-      : "In category order, which is matching precedence — switch to biggest first"
-  }">${prefs.sortBySize ? "By size" : "By order"}</button>`;
+      ? "Currently biggest first — switch back to category order, which is matching precedence"
+      : "Currently in category order, which is matching precedence — switch to biggest first"
+  }">${prefs.sortBySize ? "Sort in order" : "Sort by size"}</button>`;
   const anyHidden = summary.rows.some((row) => hiddenCategories.has(row.category.name));
   const showAll = anyHidden
     ? `<button class="show-all" title="Show every category again">Show all</button>`
@@ -150,7 +146,7 @@ function buildRows(
 
   return `
     <div class="header">
-      <span class="title">${TITLE_ICON}Line Breakdown<button class="pin-toggle" aria-pressed="false"></button></span>
+      <span class="title">${TITLE_ICON}Line Breakdown</span>
       <span class="totals">
         <span class="total-lines">${summary.totalLines.toLocaleString()} lines</span>
         <span class="total-files"${truncated ? ` title="${escapeAttr(TRUNCATION_NOTE)}"` : ""}>${truncated ? "first " : ""}${summary.filesLabel}</span>
@@ -269,15 +265,20 @@ function rerender(): void {
 
 // ── Core render ───────────────────────────────────────────────────────────────
 
-// The popup is only ever opened by hover — see bindHoverListeners. Rendering content never
-// opens it, so navigating from a PR list into a PR no longer pops the widget open unasked.
+// Rendering content never opens the popup: it is opened by pointing at an anchor or focusing
+// one. Navigating from a PR list into a PR does not pop it open unasked.
 function setContent(html: string): void {
   const onToggleCategory = context.onToggleCategory;
-  const anchor = findDiffstatAnchor();
-  if (!anchor) return;
 
-  (anchor as HTMLElement).style.cursor = "pointer";
-  syncErrorMarker(anchor);
+  // The diffstat is optional. It is the obvious way into the popup when the page header is on
+  // screen, but the launcher is a way in that does not depend on it — and rendering used to
+  // stop dead here, which left the launcher opening an empty box on any page where anchor
+  // detection came up short.
+  const anchor = findDiffstatAnchor();
+  if (anchor) {
+    (anchor as HTMLElement).style.cursor = "pointer";
+    syncErrorMarker(anchor);
+  }
 
   const shadow = ensureShadow();
   shadow.querySelector<HTMLElement>(".popup")!.innerHTML = html;
@@ -287,11 +288,6 @@ function setContent(html: string): void {
     prefs = { ...prefs, hideEmpty: !prefs.hideEmpty };
     context.onPrefsChange?.({ hideEmpty: prefs.hideEmpty });
     rerender();
-  });
-
-  shadow.querySelector<HTMLElement>(".pin-toggle")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    setPinned(!pinned);
   });
 
   const copyButton = shadow.querySelector<HTMLElement>(".copy-md");
@@ -353,15 +349,15 @@ function setContent(html: string): void {
 
   const host = document.getElementById(HOST_ID) as HTMLElement;
 
-  if (anchor !== currentAnchor) {
+  if (anchor && anchor !== currentAnchor) {
     currentAnchor = anchor;
-    bindHoverListeners(host, anchor);
+    bindDiffstatAnchor(anchor);
   }
 
-  applyPinnedState();
+  applyOpenState();
 
   // Content can change while the popup is open (loading -> rows): keep it anchored.
-  if (host.style.display === "block") positionHost(host, anchor);
+  if (host.style.display === "block" && activeAnchor) positionHost(host, activeAnchor);
 }
 
 // The marker lives in GitHub's own chip rather than in the widget's shadow root, so it is
@@ -390,98 +386,164 @@ function flash(button: HTMLElement, message: string, revertTo: string): void {
   }, 1500);
 }
 
-export function setPinned(next: boolean): void {
-  pinned = next;
-  applyPinnedState();
-
-  const host = document.getElementById(HOST_ID);
-  if (!host) return;
-  if (pinned && currentAnchor) {
-    positionHost(host, currentAnchor);
-    host.style.display = "block";
-  } else if (!pinned) {
-    host.style.display = "none";
-  }
+export function setHeldOpen(next: boolean, anchor?: HTMLElement): void {
+  heldOpen = next;
+  if (anchor) activeAnchor = anchor;
+  if (heldOpen) openAt(activeAnchor ?? currentAnchor);
+  else close();
 }
 
 // Re-applied after every render, since setContent replaces the popup's contents wholesale.
-function applyPinnedState(): void {
-  shadowRoot?.querySelector(".popup")?.classList.toggle("pinned", pinned);
-
-  const button = shadowRoot?.querySelector<HTMLElement>(".pin-toggle");
-  if (button) {
-    const label = pinned ? "Unpin — let the popup close again (Esc)" : "Pin — keep the popup open while you read it";
-    button.innerHTML = pinned ? PIN_FILLED : PIN_OUTLINE;
-    button.title = label;
-    button.setAttribute("aria-label", label);
-    button.setAttribute("aria-pressed", String(pinned));
+function applyOpenState(): void {
+  const open = isOpen();
+  for (const anchor of anchors) {
+    // React replaces the diffstat freely, so anchors accumulate. Drop the detached ones here
+    // rather than holding every node GitHub has ever rendered for the life of the tab.
+    if (!anchor.isConnected) anchors.delete(anchor);
+    else anchor.setAttribute("aria-expanded", String(open));
   }
+}
 
-  if (currentAnchor instanceof HTMLElement) {
-    currentAnchor.title = pinned ? "Click to unpin the line breakdown" : "Click to pin the line breakdown";
-    currentAnchor.setAttribute("aria-expanded", String(pinned));
-  }
+function isOpen(): boolean {
+  return document.getElementById(HOST_ID)?.style.display === "block";
+}
+
+function openAt(anchor: Element | null): void {
+  const host = document.getElementById(HOST_ID);
+  if (!host || !anchor) return;
+  cancelClose();
+  if (anchor instanceof HTMLElement) activeAnchor = anchor;
+  positionHost(host, anchor);
+  host.style.display = "block";
+  // Same function reference every time, so these do not stack up
+  window.addEventListener("scroll", reposition, { passive: true });
+  window.addEventListener("resize", reposition, { passive: true });
+  applyOpenState();
+}
+
+function close(): void {
+  const host = document.getElementById(HOST_ID);
+  if (host) host.style.display = "none";
+  window.removeEventListener("scroll", reposition);
+  window.removeEventListener("resize", reposition);
+  applyOpenState();
+}
+
+// The popup is positioned in viewport coordinates and follows its anchor while the page
+// scrolls. It used to be placed in document coordinates, which is why an open popup slid off
+// the top of the screen the moment you scrolled down into the diff — the reason the old pin
+// was useless, and the reason the launcher works.
+function reposition(): void {
+  const host = document.getElementById(HOST_ID);
+  if (host && isOpen() && activeAnchor) positionHost(host, activeAnchor);
 }
 
 function positionHost(host: HTMLElement, anchor: Element): void {
   const rect = anchor.getBoundingClientRect();
-  host.style.top = `${rect.bottom + window.scrollY + 8}px`;
+  host.style.top = `${rect.bottom + 8}px`;
   requestAnimationFrame(() => {
-    host.style.left = `${rect.right + window.scrollX - host.offsetWidth}px`;
+    // Never off the left edge, however narrow the window
+    host.style.left = `${Math.max(8, rect.right - host.offsetWidth)}px`;
   });
 }
 
-function bindHoverListeners(host: HTMLElement, anchor: Element): void {
-  listenerController?.abort();
-  listenerController = new AbortController();
-  const { signal } = listenerController;
+/**
+ * Give an element the open-on-hover, open-on-focus, toggle-on-click behaviour. Called for
+ * GitHub's diffstat and for our own launcher, so the two are one popup with two ways in
+ * rather than two implementations that drift.
+ *
+ * The host is looked up per event rather than captured: ensureShadow replaces it whenever
+ * something has torn the old one out of the document, and a captured reference would leave
+ * every listener bound here writing into a detached node for the rest of the session.
+ */
+export function attachAnchor(anchor: HTMLElement): void {
+  if (anchors.has(anchor)) return;
+  anchors.add(anchor);
 
-  let hideTimer: ReturnType<typeof setTimeout> | null = null;
+  anchor.setAttribute("aria-expanded", String(isOpen()));
+  anchor.addEventListener("mouseenter", () => openAt(anchor));
+  anchor.addEventListener("mouseleave", () => scheduleClose());
 
-  const show = () => {
-    if (hideTimer !== null) { clearTimeout(hideTimer); hideTimer = null; }
-    positionHost(host, anchor);
-    host.style.display = "block";
-  };
-  const scheduleHide = () => {
-    if (pinned) return;
-    hideTimer = setTimeout(() => { host.style.display = "none"; hideTimer = null; }, 120);
-  };
-
-  anchor.addEventListener("mouseenter", show, { signal });
-  anchor.addEventListener("mouseleave", scheduleHide, { signal });
-  host.addEventListener("mouseenter", show, { signal });
-  host.addEventListener("mouseleave", scheduleHide, { signal });
-
-  // Click the diffstat to pin, click again to release. GitHub's chip is not interactive, so
-  // there is nothing to get in the way.
+  // Focus *shows* the popup; it does not hold it open. That distinction is the whole fix for
+  // a bug where clicking closed the popup instead of opening it: browsers focus an element on
+  // mousedown, so a focus handler that set heldOpen ran before the click handler that toggles
+  // it, and the click found it already true and turned it off. Every activation was a
+  // no-op — click, Enter and Space alike — and the unit tests missed it because they
+  // dispatched activation on its own, which is not the order a browser fires.
+  anchor.addEventListener("focus", () => openAt(anchor));
+  anchor.addEventListener("blur", (event) => {
+    // Tabbing from the anchor into the popup's own buttons must not close it. The popup lives
+    // in a shadow root, so focus lands on the host element as far as this listener can see.
+    const next = (event as FocusEvent).relatedTarget;
+    if (next instanceof Node && document.getElementById(HOST_ID)?.contains(next)) return;
+    setHeldOpen(false);
+  });
   anchor.addEventListener("click", (event) => {
     event.preventDefault();
-    setPinned(!pinned);
-  }, { signal });
-
-  // GitHub's diffstat is not interactive, so nothing here is reachable by keyboard unless we
-  // make it so: the chip becomes a button that opens the popup, and everything inside the
-  // popup is focusable once it is open.
-  if (anchor instanceof HTMLElement) {
-    anchor.tabIndex = 0;
-    anchor.setAttribute("role", "button");
-    anchor.setAttribute("aria-expanded", String(pinned));
-  }
-
+    setHeldOpen(!heldOpen, anchor);
+  });
   anchor.addEventListener("keydown", (event) => {
     const key = (event as KeyboardEvent).key;
     if (key !== "Enter" && key !== " ") return;
     event.preventDefault();
-    setPinned(!pinned);
-  }, { signal });
-
-  document.addEventListener("keydown", (event) => {
-    if (pinned && (event as KeyboardEvent).key === "Escape") setPinned(false);
-  }, { signal });
-
-  applyPinnedState();
+    setHeldOpen(!heldOpen, anchor);
+  });
 }
+
+let closeTimer: ReturnType<typeof setTimeout> | null = null;
+
+// A grace period, so the pointer can cross the gap between the anchor and the popup.
+function scheduleClose(): void {
+  if (heldOpen) return;
+  cancelClose();
+  closeTimer = setTimeout(() => {
+    closeTimer = null;
+    close();
+  }, 120);
+}
+
+function cancelClose(): void {
+  if (closeTimer !== null) {
+    clearTimeout(closeTimer);
+    closeTimer = null;
+  }
+}
+
+// GitHub's diffstat is not interactive, so it is made into one: focusable, labelled as a
+// button, and driving the popup exactly as the launcher does.
+function bindDiffstatAnchor(anchor: Element): void {
+  if (!(anchor instanceof HTMLElement)) return;
+
+  anchor.tabIndex = 0;
+  anchor.setAttribute("role", "button");
+  anchor.title = "Line breakdown";
+  attachAnchor(anchor);
+}
+
+// The popup keeps itself open while the pointer is on it, so moving from an anchor onto the
+// popup does not close it. Bound once, when the host is created.
+function bindHostHover(host: HTMLElement): void {
+  host.addEventListener("mouseenter", () => {
+    cancelClose();
+    host.style.display = "block";
+  });
+  host.addEventListener("mouseleave", () => scheduleClose());
+
+  // Escape belongs to the popup, not to any one anchor. It used to be bound alongside the
+  // diffstat, which left a popup opened from the launcher undismissable by keyboard on a page
+  // where the diffstat was never found.
+  escapeController?.abort();
+  escapeController = new AbortController();
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      if (heldOpen && (event as KeyboardEvent).key === "Escape") setHeldOpen(false);
+    },
+    { signal: escapeController.signal }
+  );
+}
+
+let escapeController: AbortController | null = null;
 
 function ensureShadow(): ShadowRoot {
   // The cached root is only usable while its host is still in the document. If something
@@ -499,6 +561,7 @@ function ensureShadow(): ShadowRoot {
   host.style.display = "none";
   document.body.appendChild(host);
 
+  bindHostHover(host);
   shadowRoot = host.attachShadow({ mode: "open" });
   shadowRoot.innerHTML = `<style>${STYLES}</style><div class="popup"></div>`;
   return shadowRoot;
@@ -513,7 +576,7 @@ const STYLES = `
        stacking are re-declared here rather than inline on the host element. */
     all: initial;
     display: block;
-    position: absolute;
+    position: fixed;
     z-index: 2147483647;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   }
@@ -530,10 +593,6 @@ const STYLES = `
     color: var(--fgColor-default, var(--color-fg-default, #1f2328));
     white-space: nowrap;
     cursor: default;
-  }
-
-  .popup.pinned {
-    border-color: var(--borderColor-accent-emphasis, var(--color-accent-emphasis, #0969da));
   }
 
   .header {
@@ -709,32 +768,14 @@ const STYLES = `
   }
   .footer-gap { flex: 1; }
 
-  .pin-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 18px;
-    margin-left: 2px;
-    padding: 0;
-    background: none;
-    border: none;
-    border-radius: 3px;
-    cursor: pointer;
-    color: var(--fgColor-muted, var(--color-fg-muted, #8c959f));
-    opacity: .55;
-    vertical-align: middle;
-  }
-  .pin-toggle:hover {
-    opacity: 1;
-    background: var(--bgColor-muted, var(--color-canvas-subtle, #f6f8fa));
-  }
-  .popup.pinned .pin-toggle {
-    opacity: 1;
-    color: var(--fgColor-accent, var(--color-accent-fg, #0969da));
-  }
-
-  .sort-toggle, .show-all {
+  /* Every control in the footer reads as a link, and they are all listed here together.
+     .sort-toggle and .show-all were missing from this block entirely, so they rendered as
+     the browser's default grey buttons — which is why the sort control looked permanently
+     pressed and "Show all" read as something other than the link beside it. */
+  .copy-md,
+  .toggle-empty,
+  .sort-toggle,
+  .show-all {
     background: none;
     border: none;
     padding: 0;
@@ -742,31 +783,13 @@ const STYLES = `
     font-size: 11px;
     color: var(--fgColor-accent, var(--color-accent-fg, #0969da));
     cursor: pointer;
-  }
-  .sort-toggle:hover, .show-all:hover { text-decoration: underline; }
-
-  .copy-md {
-    background: none;
-    border: none;
-    padding: 0;
-    font-family: inherit;
-    font-size: 11px;
-    color: var(--fgColor-accent, var(--color-accent-fg, #0969da));
-    cursor: pointer;
-  }
-  .copy-md:hover { text-decoration: underline; }
-
-  .toggle-empty {
-    background: none;
-    border: none;
-    padding: 0;
-    font-size: 11px;
-    color: var(--fgColor-accent, var(--color-accent-fg, #0969da));
-    cursor: pointer;
-    font-family: inherit;
+    white-space: nowrap;
   }
 
-  .toggle-empty:hover {
+  .copy-md:hover,
+  .toggle-empty:hover,
+  .sort-toggle:hover,
+  .show-all:hover {
     text-decoration: underline;
   }
 

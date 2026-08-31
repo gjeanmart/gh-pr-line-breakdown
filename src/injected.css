@@ -68,3 +68,66 @@
   vertical-align: middle;
   background: var(--fgColor-danger, var(--color-danger-fg, #cf222e));
 }
+
+/* The launcher: a second way into the breakdown once the diffstat has scrolled away.
+ *
+ * Hosted, in GitHub's sticky pull-request toolbar, it has to pass for one of Primer's own
+ * IconButtons standing next to it — 32px, transparent until hovered, muted foreground.
+ */
+#gh-breakdown-launcher {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--fgColor-muted, var(--color-fg-muted, #656d76));
+  vertical-align: middle;
+}
+
+#gh-breakdown-launcher:hover {
+  background: var(--bgColor-neutral-muted, var(--control-transparent-bgColor-hover, rgba(129, 139, 152, 0.12)));
+  color: var(--fgColor-default, var(--color-fg-default, #1f2328));
+}
+
+#gh-breakdown-launcher:focus-visible {
+  outline: 2px solid var(--fgColor-accent, var(--color-accent-fg, #0969da));
+  outline-offset: -2px;
+}
+
+.gh-breakdown-launcher--hosted {
+  margin-left: 2px;
+}
+
+/* The fallback, for when the toolbar cannot be found — a shape heuristic against markup that
+ * is client-rendered and unfixtured, so it will occasionally miss.
+ *
+ * Bottom right, not top right. The first version sat at top: 64px and landed squarely on
+ * GitHub's own global navigation — search, the plus menu, the avatar — which is both ugly and
+ * in the way of controls the reader actually wanted. Down here it collides with nothing, and
+ * it is quiet until pointed at.
+ */
+.gh-breakdown-launcher--floating {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 100;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  opacity: 0.55;
+  background: var(--bgColor-default, var(--color-canvas-default, #ffffff));
+  border: 1px solid var(--borderColor-default, var(--color-border-default, #d0d7de));
+  box-shadow: var(--shadow-resting-medium, 0 3px 6px rgba(31, 35, 40, 0.15));
+  transition: opacity 0.15s ease;
+}
+
+.gh-breakdown-launcher--floating:hover {
+  opacity: 1;
+  background: var(--bgColor-default, var(--color-canvas-default, #ffffff));
+}

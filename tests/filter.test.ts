@@ -5,8 +5,9 @@
 // two halves disagreed in v0.1.6-dev — badges landed on the inner file-path section, whose
 // subtree does not contain the chevron — and the eye icon silently did nothing. Synthetic
 // per-function tests all passed. Hence this one, driving both halves over the real DOM.
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { injectBadges, setFilesVisible, clearBadges } from "../src/badges.js";
+import { headerFor as storedHeaderFor, filesCollapsedByUs } from "../src/file_headers.js";
 import type { Category } from "../src/config.js";
 import COMMIT_PAGE from "./fixtures/commit_header.html?raw";
 
@@ -233,5 +234,103 @@ describe("category filter over captured commit markup", () => {
 
     // Never ours, never touched — while README.md round-trips normally
     expect(clicks()).toEqual({ "CLAUDE.md": 0, "README.md": 2 });
+  });
+});
+
+// "Show all" removed its own button, cleared the filter, and left every file collapsed.
+//
+// The expand goes through a header element stored when the badge was injected, and GitHub
+// re-renders those constantly (rule 4 in file_headers.ts). Handed a stale one, expandFile
+// finds no control and does nothing — but setFilesVisible used to call forgetCollapsedByUs
+// regardless. So the record of what we had collapsed was thrown away while the files stayed
+// shut, and nothing was left that knew to try again.
+describe("expanding against a header that has gone stale", () => {
+  it("keeps the record when the expand cannot land, so a later pass can retry", async () => {
+    await injectBadges(FILES, CATEGORIES);
+    const clicks = wireToggles(["CLAUDE.md", "README.md"]);
+
+    setFilesVisible(["CLAUDE.md"], false);
+    expect(clicks()["CLAUDE.md"]).toBe(1);
+
+    // GitHub replaces the header. Our stored element is now detached, and clicking a control
+    // inside it changes nothing the reader can see.
+    const live = storedHeaderFor("CLAUDE.md")!;
+    const detached = live.cloneNode(true) as HTMLElement;
+    live.replaceWith(detached.cloneNode(true) as HTMLElement);
+
+    setFilesVisible(["CLAUDE.md"], true);
+
+    // Still on the list, so the next pass will try again against a current header
+    expect(filesCollapsedByUs()).toContain("CLAUDE.md");
+  });
+
+  it("expands and forgets once the header is current again", async () => {
+    await injectBadges(FILES, CATEGORIES);
+    const clicks = wireToggles(["CLAUDE.md", "README.md"]);
+
+    setFilesVisible(["CLAUDE.md"], false);
+    setFilesVisible(["CLAUDE.md"], true);
+
+    expect(clicks()["CLAUDE.md"]).toBe(2);
+    expect(filesCollapsedByUs()).not.toContain("CLAUDE.md");
+  });
+});
+
+// The debug flag exists so a real page can be diagnosed without a second copy of the logic.
+// It has to be off by default and silent when off, or it is a performance bug in waiting.
+describe("the debug trace", () => {
+  it("says nothing unless the flag is set", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    await injectBadges(FILES, CATEGORIES);
+
+    setFilesVisible(["CLAUDE.md"], false);
+
+    expect(log).not.toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it("explains each file's outcome when it is", async () => {
+    vi.resetModules();
+    localStorage.setItem("glb-debug", "1");
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const badges = await import("../src/badges.js");
+    await badges.injectBadges(FILES, CATEGORIES);
+    wireToggles(["CLAUDE.md", "README.md"]);
+
+    badges.setFilesVisible(["CLAUDE.md", "does/not/exist.ts"], false);
+
+    const lines = log.mock.calls.map((call) => call.join(" "));
+    expect(lines.some((l) => l.includes("CLAUDE.md") && l.includes("control found"))).toBe(true);
+    expect(lines.some((l) => l.includes("does/not/exist.ts") && l.includes("no header"))).toBe(true);
+
+    log.mockRestore();
+    localStorage.removeItem("glb-debug");
+  });
+});
+
+
+// The real reason hiding a category left files open.
+//
+// GitHub re-renders the diff constantly, and a re-render can restore a file we had collapsed
+// to expanded — our collapse was a client-side click, not state GitHub keeps. The filter was
+// then never re-applied to that file, because setFilesVisible skipped anything already on the
+// collapsed-by-us list. So the file sat expanded inside a hidden category forever, while the
+// files whose collapse happened to survive stayed collapsed. Hence "some files, not others".
+describe("a file GitHub re-expanded under us", () => {
+  it("gets collapsed again when the filter is re-applied", async () => {
+    await injectBadges(FILES, CATEGORIES);
+    const clicks = wireToggles(["CLAUDE.md", "README.md"]);
+
+    setFilesVisible(["CLAUDE.md"], false);
+    expect(clicks()["CLAUDE.md"]).toBe(1);
+
+    // GitHub re-renders and the file comes back expanded, without anyone clicking anything
+    const icon = chevronFor("CLAUDE.md").querySelector("svg")!;
+    icon.classList.replace("octicon-chevron-right", "octicon-chevron-down");
+
+    // The content script re-applies the filter after every settled batch of mutations
+    setFilesVisible(["CLAUDE.md"], false);
+
+    expect(clicks()["CLAUDE.md"]).toBe(2);
   });
 });

@@ -48,15 +48,74 @@ function describeToggle(button: HTMLElement): CollapseToggle {
   return { button, collapsed: accessibleName(button) === EXPAND_LABEL };
 }
 
-function findCollapseToggle(header: HTMLElement): CollapseToggle | null {
+/** Why the search ended where it did — for the debug log, which is the only caller. */
+export type ToggleSearch = { toggle: CollapseToggle | null; reason: string; levels: number };
+
+/**
+ * Which of several candidates is the file's own collapse control.
+ *
+ * Needed because the element we are handed is not always the header row. When a file has
+ * hidden context lines, badges.ts resolves it from the "Expand all lines" button — which is
+ * in the *diff body* — so findHeaderContainer walks up to the whole file section, and
+ * searching that subtree turns up the header chevron alongside whatever chevron-bearing
+ * controls the body contains. Giving up there is what left every expanded file in a hidden
+ * category still open, with the collapsed ones working fine and no pattern the reader could
+ * see.
+ *
+ * GitHub names the one we want, so that is tried first. Failing that, document order: a file's
+ * header precedes its body, so the file's own control cannot be the second one found.
+ */
+function pickToggle(found: HTMLElement[]): HTMLElement | null {
+  if (found.length <= 1) return found[0] ?? null;
+
+  const named = found.filter((button) => {
+    const name = accessibleName(button);
+    return name === COLLAPSE_LABEL || name === EXPAND_LABEL;
+  });
+  if (named.length === 1) return named[0];
+
+  return found[0];
+}
+
+function describeCandidates(found: HTMLElement[]): string {
+  return found.map((button) => accessibleName(button) || "(unnamed)").join(", ");
+}
+
+export function searchCollapseToggle(header: HTMLElement): ToggleSearch {
   let scope: Element | null = header;
   for (let i = 0; i <= MAX_CLIMB && scope; i++) {
     const found = Array.from(scope.querySelectorAll<HTMLElement>("button")).filter(isToggle);
-    if (found.length === 1) return describeToggle(found[0]);
-    if (found.length > 1) return null;
+
+    if (found.length === 1) return { toggle: describeToggle(found[0]), reason: "found", levels: i };
+
+    if (found.length > 1) {
+      // Only the scope we were handed is known to belong to a single file — findHeaderContainer
+      // picks the smallest ancestor with exactly one "Viewed" button. Once we have climbed,
+      // several controls really can mean several files, and collapsing the wrong one is worse
+      // than collapsing none.
+      if (i > 0) {
+        return {
+          toggle: null,
+          reason: `ambiguous after climbing — ${found.length} controls (${describeCandidates(found)})`,
+          levels: i,
+        };
+      }
+
+      const picked = pickToggle(found);
+      return {
+        toggle: picked ? describeToggle(picked) : null,
+        reason: `picked from ${found.length} controls (${describeCandidates(found)})`,
+        levels: i,
+      };
+    }
+
     scope = scope.parentElement;
   }
-  return null;
+  return { toggle: null, reason: `no control within ${MAX_CLIMB} levels`, levels: MAX_CLIMB };
+}
+
+function findCollapseToggle(header: HTMLElement): CollapseToggle | null {
+  return searchCollapseToggle(header).toggle;
 }
 
 /**
@@ -72,9 +131,16 @@ export function collapseFile(header: HTMLElement): boolean {
 }
 
 /** Expand one file, if it is currently collapsed. */
-export function expandFile(header: HTMLElement): void {
+/**
+ * Returns true only when it actually clicked — mirroring collapseFile, and for the same
+ * reason: the caller records which files it collapsed, and a silent no-op here used to clear
+ * that record anyway. A stale header (rule 4 in file_headers.ts) makes this find nothing.
+ */
+export function expandFile(header: HTMLElement): boolean {
   const toggle = findCollapseToggle(header);
-  if (toggle?.collapsed) toggle.button.click();
+  if (!toggle?.collapsed) return false;
+  toggle.button.click();
+  return true;
 }
 
 /** Whether a file header exposes a collapse control at all. */

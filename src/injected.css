@@ -1,0 +1,70 @@
+/* Styles for everything this extension injects into a GitHub page: the category badges on
+ * file headers, the +N −N counts in the file tree, and the error dot on the diffstat.
+ *
+ * The widget is not here — it lives in a shadow root with its own stylesheet, which is what
+ * a self-contained popup wants. These three are different: they are single elements placed
+ * inside GitHub's own layout, and they used to carry their rules as cssText strings built in
+ * TypeScript. That made them awkward to theme (the dark-theme work was three separate edits)
+ * and impossible to read as a set.
+ *
+ * Chrome injects this file itself, declared in manifest.json under content_scripts.css, so
+ * there is no injection code and nothing for a page's CSP to object to.
+ *
+ * Colours come from GitHub's own theme variables with our previous literals as fallbacks, so
+ * these follow light, dark, dimmed and high-contrast without a palette of their own. The one
+ * exception is the badge's background and text colour, which are per-category data rather
+ * than style and stay inline.
+ */
+
+.gh-breakdown-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 1px 7px;
+  /* The badge follows the file name directly, so its own left margin is the only thing
+     keeping it off the text. GitHub's own controls in that row use ml-2, so 8px matches. */
+  margin-left: 8px;
+  margin-right: 2px;
+  border-radius: 10px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 18px;
+  white-space: nowrap;
+  vertical-align: middle;
+  cursor: default;
+}
+
+.gh-breakdown-tree-count {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 3px;
+  /* Pushes the count to the right edge of the tree row, which is a flex container */
+  margin-left: auto;
+  padding-left: 6px;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.gh-breakdown-tree-count .gh-breakdown-added {
+  color: var(--fgColor-success, var(--color-success-fg, #1a7f37));
+}
+
+.gh-breakdown-tree-count .gh-breakdown-removed {
+  color: var(--fgColor-danger, var(--color-danger-fg, #cf222e));
+}
+
+/* Sits on GitHub's diffstat when the breakdown could not be loaded. The popup only opens on
+   hover, so without this a failure is completely silent. */
+.gh-breakdown-alert {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  margin-left: 6px;
+  border-radius: 50%;
+  vertical-align: middle;
+  background: var(--fgColor-danger, var(--color-danger-fg, #cf222e));
+}

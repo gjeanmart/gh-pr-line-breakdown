@@ -97,32 +97,22 @@ function findFileTree(): HTMLElement | null {
   );
 }
 
+// Styled entirely by injected.css — see the classes there.
 function createCount(stats: LineStats): HTMLElement {
   const wrap = document.createElement("span");
   wrap.className = TREE_COUNT_CLASS;
-  wrap.style.cssText = [
-    "display:inline-flex",
-    "align-items:center",
-    "gap:3px",
-    "margin-left:auto",
-    "padding-left:6px",
-    "font-size:11px",
-    "font-family:ui-monospace,SFMono-Regular,SF Mono,Menlo,Consolas,monospace",
-    "flex-shrink:0",
-    "white-space:nowrap",
-  ].join(";");
 
   if (stats.added > 0) {
     const add = document.createElement("span");
-    add.style.color = "var(--fgColor-success, var(--color-success-fg, #1a7f37))";
+    add.className = "gh-breakdown-added";
     add.textContent = `+${stats.added}`;
     wrap.appendChild(add);
   }
   if (stats.removed > 0) {
-    const rm = document.createElement("span");
-    rm.style.color = "var(--fgColor-danger, var(--color-danger-fg, #cf222e))";
-    rm.textContent = `−${stats.removed}`;
-    wrap.appendChild(rm);
+    const removed = document.createElement("span");
+    removed.className = "gh-breakdown-removed";
+    removed.textContent = `−${stats.removed}`;
+    wrap.appendChild(removed);
   }
 
   return wrap;

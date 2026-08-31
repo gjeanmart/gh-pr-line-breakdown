@@ -277,30 +277,15 @@ function findFileNameElement(container: HTMLElement): HTMLElement | null {
   return link?.closest("h3") ?? link ?? null;
 }
 
+// Everything about a badge except its colours is in injected.css. The colours are per-category
+// data rather than style, so they stay inline — and they are the reason the badge cannot be a
+// pure class in the first place.
 function createBadge(category: Category): HTMLElement {
   const color = safeCssColor(category.color);
   const badge = document.createElement("span");
   badge.className = BADGE_CLASS;
   badge.textContent = category.name;
-  badge.style.cssText = [
-    "display:inline-flex",
-    "align-items:center",
-    "padding:1px 7px",
-    "border-radius:10px",
-    "font-size:11px",
-    "font-weight:500",
-    `color:${readableTextColor(color)}`,
-    `background:${color}`,
-    "white-space:nowrap",
-    "line-height:18px",
-    // The badge follows the file name directly, so its own left margin is the only thing
-    // keeping it off the text. GitHub's own controls in that row use ml-2, so 8px matches.
-    "margin-left:8px",
-    "margin-right:2px",
-    "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif",
-    "vertical-align:middle",
-    "cursor:default",
-    "flex-shrink:0",
-  ].join(";");
+  badge.style.background = color;
+  badge.style.color = readableTextColor(color);
   return badge;
 }

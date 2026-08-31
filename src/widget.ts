@@ -297,8 +297,8 @@ function setContent(html: string): void {
   if (host.style.display === "block") positionHost(host, anchor);
 }
 
-// The marker lives in GitHub's own chip, so it is styled inline like the badges and the
-// tree counts, and it takes its red from GitHub's theme.
+// The marker lives in GitHub's own chip rather than in the widget's shadow root, so it is
+// styled by injected.css along with the badges and the tree counts.
 function syncErrorMarker(anchor: Element): void {
   const existing = anchor.querySelector(`.${MARKER_CLASS}`);
 
@@ -313,16 +313,6 @@ function syncErrorMarker(anchor: Element): void {
   dot.setAttribute("role", "img");
   dot.setAttribute("aria-label", "Line breakdown unavailable");
   dot.title = "Line breakdown unavailable — hover for details";
-  dot.style.cssText = [
-    "display:inline-block",
-    "width:7px",
-    "height:7px",
-    "border-radius:50%",
-    "margin-left:6px",
-    "vertical-align:middle",
-    "flex-shrink:0",
-    "background:var(--fgColor-danger, var(--color-danger-fg, #cf222e))",
-  ].join(";");
   anchor.appendChild(dot);
 }
 
@@ -420,7 +410,9 @@ function ensureShadow(): ShadowRoot {
 
   const host = document.createElement("div");
   host.id = HOST_ID;
-  host.style.cssText = "position:absolute;z-index:2147483647;display:none;";
+  // Only the runtime state is inline; position and stacking are in :host, below. Starting
+  // hidden matters before anything renders, which is why display is set here.
+  host.style.display = "none";
   document.body.appendChild(host);
 
   shadowRoot = host.attachShadow({ mode: "open" });
@@ -432,8 +424,13 @@ function ensureShadow(): ShadowRoot {
 
 const STYLES = `
   :host {
+    /* all: initial does not reset custom properties, which is what lets GitHub's theme
+       variables reach the rules below. It does reset everything else, so position and
+       stacking are re-declared here rather than inline on the host element. */
     all: initial;
     display: block;
+    position: absolute;
+    z-index: 2147483647;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   }
 

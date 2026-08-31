@@ -113,12 +113,15 @@ describe("category filter over captured commit markup", () => {
     expect(shape("CLAUDE.md").replace(/( button)+$/, "")).toBe(whenExpanded.replace(/( button)+$/, ""));
   });
 
-  it("keeps the badge clear of the file name", async () => {
-    // It sits immediately after the path now, so its own margin is the only spacing there is
+  it("carries nothing inline but its category colours", async () => {
+    // Everything else is in injected.css, which Chrome injects from the manifest — jsdom
+    // does not load it, so the rules are asserted against the file below
     await injectBadges(FILES, CATEGORIES);
 
     const badge = document.querySelector<HTMLElement>(".gh-breakdown-badge")!;
-    expect(badge.style.marginLeft).toBe("8px");
+    expect(badge.style.background).not.toBe("");
+    expect(badge.style.color).not.toBe("");
+    expect(badge.getAttribute("style")).not.toContain("margin");
   });
 
   describe("a file with every line added", () => {

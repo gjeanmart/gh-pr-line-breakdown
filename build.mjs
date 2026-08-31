@@ -93,6 +93,11 @@ async function main() {
       resolve(__dirname, "src/theme.css"),
       resolve(__dirname, "dist/theme.css")
     ),
+    // Styles for what we inject into GitHub — Chrome injects this itself, see manifest.json
+    copyFile(
+      resolve(__dirname, "src/injected.css"),
+      resolve(__dirname, "dist/injected.css")
+    ),
     ...[16, 32, 48, 128].map((size) =>
       copyFile(
         resolve(__dirname, `src/icons/icon${size}.png`),

@@ -59,15 +59,10 @@ constraints are called out where they apply.
 
 Three internal fixes first — the filename → header map extracted into `src/file_headers.ts`
 with its contract, one stylesheet for everything injected into GitHub, and a `--dry-run` for
-the release script — then five features on the surface they sit under: sort by size, filter
-shortcuts, filtering from the popup, keyboard access, and a filter remembered per PR.
-
-1. **Extract the filename → header map** — three separate bugs have come from callers
-   disagreeing about what that map holds (a dead eye icon, a badge that jumped sides,
-   duplicate badges). It needs its own module with the contract written down.
-2. **One styling idiom for injected surfaces** — badges and tree counts are styled with
-   `cssText` strings while the widget has a stylesheet; two of the features below add UI to
-   those same surfaces.
+the release script — then the features on the surface they sit under: sort by size, filter
+shortcuts, filtering from the popup, keyboard access, a filter remembered per PR, and a
+launcher in GitHub's sticky file toolbar so the breakdown is still reachable once the page
+header has scrolled away.
 
 ### v0.2.0 — configuration that fits real repos
 

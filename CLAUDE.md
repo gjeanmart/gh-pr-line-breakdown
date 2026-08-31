@@ -617,29 +617,47 @@ MutationObserver, GitHub API for file data.
 - [ ] **Gitea support** — extend to Gitea/Forgejo instances (self-hosted); add a `GiteaProvider` using `GET /repos/{owner}/{repo}/pulls/{index}/files`. User configures instance URLs in the Settings tab.
 - [x] **Commit page support** — extend the extension to work on GitHub commit pages (`github.com/{owner}/{repo}/commit/{sha}`); fetch changed files via `GET /repos/{owner}/{repo}/commits/{sha}` and render the same breakdown widget and file badges as on PR pages.
 
-### Known issues
+### Known issues — all open as of v0.1.8
 
-**Coherence**
+Verified against the code, not remembered. None is a defect: no user can see any of them.
+Four are the seams that keep producing defects, so they lead the next releases rather than
+waiting for a quiet week — see the ordered roadmap in README.md.
+
+**Scheduled for v0.1.9**
+
+- [ ] `badges.ts` holds three jobs — badge injection, the filename → header map, and the
+      filter's public API. The map is the one that matters: two other modules depend on
+      exactly what it stores, and being wrong about that has produced **three** separate bugs
+      (the dead eye icon in v0.1.6, the badge that jumped sides in v0.1.7, the duplicate
+      badges in v0.1.8). Three from one misunderstanding is a pattern. It needs its own module
+      with the contract written where the callers can read it.
+- [ ] Two idioms for injected styling: a stylesheet in the widget's shadow root, long
+      `cssText` strings in `badges.ts` and `file_tree.ts`. The second is harder to theme,
+      which is what the dark-theme work ran into — and the v0.1.9 features add UI to exactly
+      those surfaces.
+- [ ] `release.mjs` has no dry run, and fails confusingly when the version already matches the
+      target (its bump commit then has nothing to commit). It is now tested end to end in a
+      throwaway repo, which is most of the value; a flag would make that a command.
+
+**Scheduled for v0.2.0**
 
 - [ ] Types are scattered: `Category`/`Config` in `config.ts`, `FileEntry`/`CategoryStats` in
-      `matcher.ts`, so `github_api.ts` imports its file type from the matcher.
-- [ ] `badges.ts` still holds three jobs — badge injection, the filename → header map, and the
-      filter's public API. The map deserves its own module with its contract stated, since two
-      other modules depend on exactly what it stores.
-- [ ] Two idioms for injected styling: a stylesheet in the widget's shadow root, long
-      `cssText` strings in `badges.ts` and `file_tree.ts`.
-- [ ] `release.mjs` has no dry run, and fails confusingly when the version already matches the
-      target (its bump commit then has nothing to commit).
+      `matcher.ts`, so `github_api.ts` imports its file type from the matcher. Worth doing
+      while the config schema is already moving for repo-scoped config.
 
-**Noted, not a bug**
+**Decided, not a bug**
 
 - Renames are classified by their new path only. The API returns `previous_filename`, so a
-  file moved from `src/` into `tests/` counts entirely as Tests. Almost always what you want.
+  file moved from `src/` into `tests/` counts entirely as Tests. Almost always what you want —
+  recorded so the choice stays deliberate.
 
 Fixed in v0.1.7: the fallback-category trap (normalised on load, save and import), the
 stacked toast timer, document-wide sweeps on every pass, the observer scheduling work on
 pages we ignore, three copies of `escapeHtml`, duplicated summary arithmetic, and the
 untested folder rollup and import validator.
+
+Fixed in v0.1.8: duplicate badges on files with no deletions — the badge landed outside the
+element the duplicate check searches, so every pass added another.
 
 ---
 

@@ -333,9 +333,22 @@ tooltip instead of `aria-label`.
 
 It also **climbs**: starting from the element it was handed (see the warning above — usually
 the file-path section, whose subtree does not contain the chevron), it walks up to 4 levels
-until a scope contains exactly one control. Zero means keep climbing; more than one means it
-has reached a container holding several files, and it gives up rather than collapse the
-wrong one. Shipping this without the climb is what broke the eye icon on both page types in
+until a scope contains a control. Zero means keep climbing.
+
+**More than one means different things depending on whether it has climbed yet**, and
+conflating the two is why hiding a category collapsed some of its files and left others open:
+
+- **In the scope it was handed**, several controls mean one file with several controls. A file
+  with hidden context lines is resolved by `badges.ts` from its "Expand all lines" button,
+  which lives in the diff *body*, so `findHeaderContainer` walks up to the whole file section
+  — and searching that subtree finds the header chevron next to whatever the body holds.
+  `pickToggle` takes the one GitHub names ("Collapse file" / "Expand file"), and failing that
+  the first in document order, since a file's header precedes its body. Giving up here meant
+  every *expanded* file in a hidden category stayed open while the already-collapsed ones
+  worked — their bodies are not rendered, so there was nothing else to find, and the pattern
+  looked like nothing at all from the outside.
+- **After climbing**, several controls really can mean several files, and collapsing the wrong
+  one is worse than collapsing none. That case still refuses. Shipping this without the climb is what broke the eye icon on both page types in
 v0.1.6-dev — every synthetic unit test passed, because they were written against markup
 where the control sat inside the header element.
 
@@ -685,7 +698,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 pnpm install
 pnpm run build         # outputs to dist/
-pnpm test              # vitest unit tests (253 tests)
+pnpm test              # vitest unit tests (256 tests)
 ```
 
 To load in Chrome:

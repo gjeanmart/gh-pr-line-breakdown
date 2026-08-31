@@ -179,10 +179,17 @@ export function setFilesVisible(filenames: string[], visible: boolean): void {
     if (!header?.isConnected) continue;
 
     if (!visible) {
-      // Skip files we already collapsed. content_script re-applies active filters after
-      // every DOM refresh, and without this a file the user deliberately expanded inside
-      // a hidden category would be slammed shut again on the next mutation.
-      if (wasCollapsedByUs(filename)) continue;
+      // Enforce the filter every time, rather than trusting a record of having enforced it
+      // before. This used to skip anything already on the collapsed-by-us list, to avoid
+      // slamming shut a file the reader had deliberately expanded inside a hidden category.
+      // The record cannot carry that meaning: our collapse is a click, not state GitHub
+      // keeps, so its own re-render restores the file to expanded — after which the file sat
+      // open inside a hidden category and the skip guaranteed nothing would ever fix it.
+      // Files whose collapse happened to survive stayed collapsed, which is what made the
+      // failure look arbitrary from the outside.
+      //
+      // collapseFile is a no-op on an already-collapsed file, so re-applying costs one
+      // findCollapseToggle and clicks nothing.
       if (collapseFile(header)) markCollapsedByUs(filename);
     } else {
       if (!wasCollapsedByUs(filename)) continue;

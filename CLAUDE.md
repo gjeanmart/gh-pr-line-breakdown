@@ -374,9 +374,22 @@ nothing was left that knew to try again.
 
 `collapseFile` returns `true` only when it actually clicked, so `filteredFiles: Set<string>`
 holds exactly the files *we* collapsed and the filter never expands a file the user (or
-GitHub, for large diffs) had already collapsed. `setFilesVisible` also skips files already
-in `filteredFiles`, so re-applying an active filter after a DOM refresh does not slam shut
-a file the user deliberately expanded inside a hidden category.
+GitHub, for large diffs) had already collapsed. That record governs **expanding only**.
+
+**Collapsing is enforced every pass, not recorded and trusted.** `setFilesVisible` used to
+skip any file already in `filteredFiles`, meaning to protect a file the reader had
+deliberately expanded inside a hidden category. The record cannot carry that meaning: our
+collapse is a *click*, not state GitHub keeps, so one of its re-renders restores the file to
+expanded — and the skip then guaranteed nothing would ever collapse it again. Files whose
+collapse happened to survive stayed collapsed, so hiding a category appeared to work on some
+files and not others, with no pattern visible from the outside. Three wrong diagnoses came
+from looking for that pattern in GitHub's markup; the bug was in this state machine, and a
+test that flips a chevron back reproduces it in four lines.
+
+The cost of enforcing is one `findCollapseToggle` per file in a hidden category per pass;
+`collapseFile` clicks nothing when the file is already collapsed. The trade is that expanding
+a file inside a hidden category no longer sticks — the next pass closes it. Unhide the
+category to read it.
 
 ### File tree line counts — `src/file_tree.ts`
 
@@ -698,7 +711,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 pnpm install
 pnpm run build         # outputs to dist/
-pnpm test              # vitest unit tests (256 tests)
+pnpm test              # vitest unit tests (257 tests)
 ```
 
 To load in Chrome:

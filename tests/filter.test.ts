@@ -307,3 +307,30 @@ describe("the debug trace", () => {
     localStorage.removeItem("glb-debug");
   });
 });
+
+
+// The real reason hiding a category left files open.
+//
+// GitHub re-renders the diff constantly, and a re-render can restore a file we had collapsed
+// to expanded — our collapse was a client-side click, not state GitHub keeps. The filter was
+// then never re-applied to that file, because setFilesVisible skipped anything already on the
+// collapsed-by-us list. So the file sat expanded inside a hidden category forever, while the
+// files whose collapse happened to survive stayed collapsed. Hence "some files, not others".
+describe("a file GitHub re-expanded under us", () => {
+  it("gets collapsed again when the filter is re-applied", async () => {
+    await injectBadges(FILES, CATEGORIES);
+    const clicks = wireToggles(["CLAUDE.md", "README.md"]);
+
+    setFilesVisible(["CLAUDE.md"], false);
+    expect(clicks()["CLAUDE.md"]).toBe(1);
+
+    // GitHub re-renders and the file comes back expanded, without anyone clicking anything
+    const icon = chevronFor("CLAUDE.md").querySelector("svg")!;
+    icon.classList.replace("octicon-chevron-right", "octicon-chevron-down");
+
+    // The content script re-applies the filter after every settled batch of mutations
+    setFilesVisible(["CLAUDE.md"], false);
+
+    expect(clicks()["CLAUDE.md"]).toBe(2);
+  });
+});

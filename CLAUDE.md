@@ -32,6 +32,7 @@ gh-pr-line-breakdown/
 │   ├── github_api.ts       # fetches PR / commit files via GitHub REST API (paginated)
 │   ├── page.ts             # which GitHub page are we on (pure URL parsing)
 │   ├── theme.css           # shared palette for the popup + options pages
+│   ├── injected.css        # styles for what we inject into GitHub (Chrome injects it)
 │   ├── popup/
 │   │   ├── popup.html
 │   │   └── popup.ts        # breakdown view + show/hide empty toggle + "Open Options" button
@@ -428,6 +429,14 @@ GitHub Enterprise), then the literal we used before — so a rename degrades to 
 appearance rather than to nothing. Custom properties **inherit through a shadow boundary** and
 are **not** reset by `all: initial`, which is why this works inside the widget's shadow root.
 
+**Where those styles live.** The widget keeps its stylesheet inside its shadow root, which is
+what a self-contained popup wants. The three single elements placed inside GitHub's own layout
+— the header badges, the tree counts, the error dot — are styled by **`src/injected.css`**,
+declared in `manifest.json` under `content_scripts.css` so **Chrome injects it**: no injection
+code, and nothing for a page's CSP to object to. The only inline styles left are the ones that
+are data rather than style — a badge's own category colour, and the widget host's `display`,
+which is runtime state.
+
 **The extension's own pages** — popup and options — have no host to inherit from, so
 `src/theme.css` carries the palette: GitHub's light and dark values as tokens, one file,
 linked by both HTML pages and copied to `dist/` by `build.mjs`. `options.css` and the
@@ -618,24 +627,18 @@ MutationObserver, GitHub API for file data.
 - [ ] **Gitea support** — extend to Gitea/Forgejo instances (self-hosted); add a `GiteaProvider` using `GET /repos/{owner}/{repo}/pulls/{index}/files`. User configures instance URLs in the Settings tab.
 - [x] **Commit page support** — extend the extension to work on GitHub commit pages (`github.com/{owner}/{repo}/commit/{sha}`); fetch changed files via `GET /repos/{owner}/{repo}/commits/{sha}` and render the same breakdown widget and file badges as on PR pages.
 
-### Known issues — all open as of v0.1.8
+### Known issues — status as of the v0.1.9 work in progress
 
 Verified against the code, not remembered. None is a defect: no user can see any of them.
-Four are the seams that keep producing defects, so they lead the next releases rather than
+They are the seams that keep producing defects, which is why they lead v0.1.9 rather than
 waiting for a quiet week — see the ordered roadmap in README.md.
 
 **Scheduled for v0.1.9**
 
-- [ ] `badges.ts` holds three jobs — badge injection, the filename → header map, and the
-      filter's public API. The map is the one that matters: two other modules depend on
-      exactly what it stores, and being wrong about that has produced **three** separate bugs
-      (the dead eye icon in v0.1.6, the badge that jumped sides in v0.1.7, the duplicate
-      badges in v0.1.8). Three from one misunderstanding is a pattern. It needs its own module
-      with the contract written where the callers can read it.
-- [ ] Two idioms for injected styling: a stylesheet in the widget's shadow root, long
-      `cssText` strings in `badges.ts` and `file_tree.ts`. The second is harder to theme,
-      which is what the dark-theme work ran into — and the v0.1.9 features add UI to exactly
-      those surfaces.
+- [x] ~~`badges.ts` holds three jobs~~ — the map moved to `src/file_headers.ts` with its
+      contract; `badges.ts` keeps injection and the filter API
+- [x] ~~Two idioms for injected styling~~ — `src/injected.css`, injected by Chrome from the
+      manifest
 - [ ] `release.mjs` has no dry run, and fails confusingly when the version already matches the
       target (its bump commit then has nothing to commit). It is now tested end to end in a
       throwaway repo, which is most of the value; a flag would make that a command.

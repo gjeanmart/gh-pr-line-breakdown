@@ -25,6 +25,9 @@
       "js": [
         "content_script.js"
       ],
+      "css": [
+        "injected.css"
+      ],
       "run_at": "document_idle"
     }
   ],

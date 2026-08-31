@@ -9,7 +9,7 @@ A Chrome extension that shows a line-count breakdown widget on GitHub PR pages, 
 
 ## How it works
 
-The extension fetches the list of changed files from the GitHub REST API and classifies each file against your configured categories using glob patterns. The results appear as a popup anchored to the native `+N -N ████` diffstat — point at that diffstat to open it, or **click it to pin the popup open** (click again, or press Escape, to close). It works on every PR tab (Conversation, Commits, Checks, Files Changed) and on commit pages (`/commit/{sha}`), and it follows your GitHub theme, including the dimmed and high-contrast variants.
+The extension fetches the list of changed files from the GitHub REST API and classifies each file against your configured categories using glob patterns. The results appear as a popup anchored to the native `+N -N ████` diffstat — point at that diffstat to open it, or click to keep it open (click again, or press Escape, to close). Once you scroll into the diff and the header is gone, the same popup is one hover away from the extension's icon in GitHub's sticky file toolbar. Either way the popup follows its anchor as you scroll. It works on every PR tab (Conversation, Commits, Checks, Files Changed) and on commit pages (`/commit/{sha}`), and it follows your GitHub theme, including the dimmed and high-contrast variants.
 
 The popup header shows the total line and file counts across all categories. Each category row shows its file count, a proportional bar chart, added/removed line counts, a percentage of total lines changed, and an eye icon to collapse/expand all matching files in the Files Changed tab.
 
@@ -19,7 +19,7 @@ The popup footer has a **Copy markdown** button, which puts the breakdown on you
 
 The eye icon on each row collapses that category's files in the diff. **⌥-click** (Alt elsewhere) hides everything *except* that category, and **Show all** brings them back. Whatever you hide is remembered for that PR, so coming back to a review picks up where you left off. The toolbar popup has the same eye icons and drives the same filter.
 
-Everything is reachable from the keyboard: the diffstat is focusable, Enter or Space pins the popup open, and Escape closes it.
+Everything is reachable from the keyboard: the diffstat and the toolbar icon are both focusable, Enter or Space opens the popup, and Escape closes it.
 
 If the breakdown can't be loaded — a rate limit, or a private repo without a token — a small red dot appears on the diffstat; hover it for the reason, and for a link straight to the token field. Without a token GitHub allows 60 API calls an hour, so when you get close the widget and popup start telling you how many are left and when the hour resets. The **Settings** tab shows the number at any time, along with your ceiling — check it after adding a token to confirm the token works.
 

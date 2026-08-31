@@ -20,6 +20,13 @@ async function freshWidget() {
 }
 
 const host = () => document.getElementById(HOST_ID)!;
+const shadowStyle = () => host().shadowRoot!.querySelector("style")!.textContent!;
+
+// jsdom has no layout engine, so every rect is zero. The positioning maths is the point here,
+// so the rect is supplied.
+function stubRect(el: HTMLElement, rect: { bottom: number; right: number }): void {
+  el.getBoundingClientRect = () => ({ ...rect, top: 0, left: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}) });
+}
 
 type Widget = Awaited<ReturnType<typeof freshWidget>>;
 
@@ -266,10 +273,8 @@ describe("quota and token guidance", () => {
   });
 });
 
-describe("pinning", () => {
-  const popup = () => host().shadowRoot!.querySelector(".popup")!;
-
-  it("stays open after the cursor leaves once pinned", async () => {
+describe("holding the popup open", () => {
+  it("stays open after the cursor leaves once clicked", async () => {
     const widget = await freshWidget();
     renderRows(widget);
     const anchor = findDiffstatAnchor()!;
@@ -279,7 +284,6 @@ describe("pinning", () => {
     vi.advanceTimersByTime(500);
 
     expect(host().style.display).toBe("block");
-    expect(popup().classList.contains("pinned")).toBe(true);
   });
 
   it("closes again on a second click", async () => {
@@ -291,7 +295,6 @@ describe("pinning", () => {
     anchor.dispatchEvent(new MouseEvent("click"));
 
     expect(host().style.display).toBe("none");
-    expect(popup().classList.contains("pinned")).toBe(false);
   });
 
   it("closes on Escape", async () => {
@@ -304,18 +307,17 @@ describe("pinning", () => {
     expect(host().style.display).toBe("none");
   });
 
-  it("ignores Escape when it is not pinned", async () => {
+  it("ignores Escape when it is only hovered", async () => {
     const widget = await freshWidget();
     renderRows(widget);
-    const anchor = findDiffstatAnchor()!;
-    anchor.dispatchEvent(new MouseEvent("mouseenter"));
+    findDiffstatAnchor()!.dispatchEvent(new MouseEvent("mouseenter"));
 
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
 
     expect(host().style.display).toBe("block");
   });
 
-  it("survives a re-render while pinned", async () => {
+  it("survives a re-render while open", async () => {
     const widget = await freshWidget();
     renderRows(widget);
     findDiffstatAnchor()!.dispatchEvent(new MouseEvent("click"));
@@ -323,17 +325,89 @@ describe("pinning", () => {
     renderRows(widget);
 
     expect(host().style.display).toBe("block");
-    expect(popup().classList.contains("pinned")).toBe(true);
   });
 
-  it("tells the reader the diffstat is clickable", async () => {
+  it("makes GitHub's diffstat into a real control", async () => {
     const widget = await freshWidget();
     renderRows(widget);
     const anchor = findDiffstatAnchor() as HTMLElement;
 
-    expect(anchor.title).toBe("Click to pin the line breakdown");
+    expect(anchor.title).toBe("Line breakdown");
+    expect(anchor.getAttribute("role")).toBe("button");
+    expect(anchor.tabIndex).toBe(0);
+    expect(anchor.getAttribute("aria-expanded")).toBe("false");
+
     anchor.dispatchEvent(new MouseEvent("click"));
-    expect(anchor.title).toBe("Click to unpin the line breakdown");
+    expect(anchor.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("opens on focus and closes on blur", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor() as HTMLElement;
+
+    anchor.dispatchEvent(new FocusEvent("focus"));
+    expect(host().style.display).toBe("block");
+
+    anchor.dispatchEvent(new FocusEvent("blur"));
+    expect(host().style.display).toBe("none");
+  });
+
+  // Tab order runs from the diffstat into the popup's own buttons, and losing the popup on the
+  // way there would make every control in it unreachable by keyboard.
+  it("does not close when focus moves into the popup", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor() as HTMLElement;
+    anchor.dispatchEvent(new FocusEvent("focus"));
+
+    anchor.dispatchEvent(new FocusEvent("blur", { relatedTarget: host() }));
+
+    expect(host().style.display).toBe("block");
+  });
+});
+
+describe("staying with its anchor", () => {
+  // The whole reason the pin was dropped: the popup used to be placed in document
+  // coordinates, so it scrolled off the top of the screen and left the reader with an open
+  // popup they could not see.
+  it("positions itself in viewport coordinates", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor() as HTMLElement;
+    stubRect(anchor, { bottom: 100, right: 400 });
+
+    anchor.dispatchEvent(new MouseEvent("click"));
+
+    expect(host().style.position).toBe("");
+    expect(shadowStyle()).toContain("position: fixed");
+    expect(host().style.top).toBe("108px");
+  });
+
+  it("follows its anchor as the page scrolls", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor() as HTMLElement;
+    stubRect(anchor, { bottom: 100, right: 400 });
+    anchor.dispatchEvent(new MouseEvent("click"));
+
+    stubRect(anchor, { bottom: 20, right: 400 });
+    window.dispatchEvent(new Event("scroll"));
+
+    expect(host().style.top).toBe("28px");
+  });
+
+  it("never places itself off the left edge", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor() as HTMLElement;
+    stubRect(anchor, { bottom: 10, right: 20 });
+
+    anchor.dispatchEvent(new MouseEvent("click"));
+    vi.advanceTimersByTime(50);
+
+    // offsetWidth is 0 under jsdom, so 20 - 0 = 20; the clamp is what is under test
+    expect(parseInt(host().style.left, 10)).toBeGreaterThanOrEqual(8);
   });
 });
 
@@ -379,65 +453,6 @@ describe("copy as markdown", () => {
     await vi.waitFor(() => expect(button.textContent).toBe("Copy failed"));
 
     vi.unstubAllGlobals();
-  });
-});
-
-describe("the pin control", () => {
-  const pinButton = () => host().shadowRoot!.querySelector<HTMLElement>(".pin-toggle")!;
-
-  it("sits in the header, so pinning is findable without a tooltip", async () => {
-    const widget = await freshWidget();
-
-    renderRows(widget);
-
-    const button = pinButton();
-    expect(button.closest(".title")).not.toBeNull();
-    expect(button.getAttribute("aria-pressed")).toBe("false");
-    expect(button.getAttribute("aria-label")).toContain("Pin");
-    expect(button.querySelector("svg")).not.toBeNull();
-  });
-
-  it("pins from the footer button", async () => {
-    const widget = await freshWidget();
-    renderRows(widget);
-
-    pinButton().click();
-    findDiffstatAnchor()!.dispatchEvent(new MouseEvent("mouseleave"));
-    vi.advanceTimersByTime(500);
-
-    expect(host().style.display).toBe("block");
-    expect(pinButton().getAttribute("aria-pressed")).toBe("true");
-  });
-
-  it("releases from the footer button", async () => {
-    const widget = await freshWidget();
-    renderRows(widget);
-    pinButton().click();
-
-    pinButton().click();
-
-    expect(host().style.display).toBe("none");
-    expect(pinButton().getAttribute("aria-pressed")).toBe("false");
-  });
-
-  it("keeps its state in step with a pin from the diffstat", async () => {
-    const widget = await freshWidget();
-    renderRows(widget);
-
-    findDiffstatAnchor()!.dispatchEvent(new MouseEvent("click"));
-
-    expect(pinButton().getAttribute("aria-pressed")).toBe("true");
-    expect(pinButton().getAttribute("aria-label")).toContain("Unpin");
-  });
-
-  it("still reads correctly after a re-render", async () => {
-    const widget = await freshWidget();
-    renderRows(widget);
-    pinButton().click();
-
-    renderRows(widget);
-
-    expect(pinButton().getAttribute("aria-pressed")).toBe("true");
   });
 });
 

@@ -7,8 +7,10 @@ import {
   getHiddenCategories,
   resetCategoryFilter,
   setHiddenCategories,
+  attachAnchor,
   type WidgetContext,
 } from "./widget.js";
+import { ensureLauncher, removeLauncher } from "./launcher.js";
 import { loadPrefs, savePrefs, loadHiddenCategories, saveHiddenCategories, DEFAULT_PREFS } from "./prefs.js";
 import type { Prefs } from "./prefs.js";
 import { fetchFiles } from "./github_api.js";
@@ -89,6 +91,7 @@ async function runBreakdown(): Promise<void> {
     setHiddenCategories(await loadHiddenCategories(page.path));
     clearBadges();
     clearTreeCounts();
+    removeLauncher();
     renderLoadingState(widgetContext());
     const result = await fetchFiles(page, currentConfig.githubToken);
     if (result.rate) cachedRate = result.rate;
@@ -115,6 +118,10 @@ async function runBreakdown(): Promise<void> {
       setFilesVisible(filesByCategory.get(catName) ?? [], visible);
     },
   });
+
+  // A second way in, for once the diffstat has scrolled out of sight. Re-checked every pass
+  // because GitHub's sticky header appears and disappears as you scroll.
+  attachAnchor(ensureLauncher());
 
   const written = (await injectBadges(cachedFiles, categories)) + injectTreeCounts(cachedFiles);
 

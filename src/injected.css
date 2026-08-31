@@ -68,3 +68,49 @@
   vertical-align: middle;
   background: var(--fgColor-danger, var(--color-danger-fg, #cf222e));
 }
+
+/* The launcher: a second way into the breakdown once the diffstat has scrolled away.
+ *
+ * Two placements. Hosted, when GitHub's sticky action row was found, it sits among that row's
+ * icon buttons and should look like one of them. Floating, when it was not, it pins itself to
+ * the top-right of the viewport — deliberately below GitHub's own sticky header so it does not
+ * cover anything. The fallback matters: the sticky row is found by shape rather than by class
+ * name, and shapes change.
+ */
+#gh-breakdown-launcher {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  color: var(--fgColor-muted, var(--color-fg-muted, #656d76));
+}
+
+#gh-breakdown-launcher:hover {
+  background: var(--bgColor-muted, var(--color-canvas-subtle, #f6f8fa));
+  color: var(--fgColor-accent, var(--color-accent-fg, #0969da));
+}
+
+#gh-breakdown-launcher:focus-visible {
+  outline: 2px solid var(--fgColor-accent, var(--color-accent-fg, #0969da));
+  outline-offset: -1px;
+}
+
+.gh-breakdown-launcher--hosted {
+  margin-left: 4px;
+}
+
+.gh-breakdown-launcher--floating {
+  position: fixed;
+  top: 64px;
+  right: 16px;
+  z-index: 100;
+  background: var(--bgColor-default, var(--color-canvas-default, #ffffff));
+  border: 1px solid var(--borderColor-default, var(--color-border-default, #d0d7de));
+  box-shadow: var(--shadow-resting-small, 0 1px 3px rgba(31, 35, 40, .12));
+}

@@ -19,6 +19,7 @@ gh-pr-line-breakdown/
 │   ├── content_script.ts   # injected on github.com/*/pull/* pages
 │   ├── widget.ts           # hover popup rendering (anchored to diffstat)
 │   ├── anchor.ts           # locates GitHub's +N −N diffstat element (DOM-only, testable)
+│   ├── launcher.ts         # second way in: a button in GitHub's sticky file toolbar
 │   ├── collapse.ts         # drives GitHub's own per-file collapse control
 │   ├── color.ts            # category colour safety + readable badge text (pure)
 │   ├── html.ts             # escapeHtml / escapeAttr, shared by all three UIs (pure)
@@ -45,6 +46,7 @@ gh-pr-line-breakdown/
 ├── tests/
 │   ├── matcher.test.ts     # vitest unit tests for matcher logic
 │   ├── anchor.test.ts      # jsdom tests for diffstat anchor detection
+│   ├── launcher.test.ts    # jsdom: placement, fallback, and driving the popup
 │   ├── widget.test.ts      # jsdom tests for popup hover behaviour
 │   ├── collapse.test.ts    # jsdom tests for the collapse control
 │   ├── page.test.ts        # URL parsing (pure, no DOM)
@@ -203,20 +205,22 @@ inactive one with a container query, so an invisible clone would otherwise win t
 jsdom, which has no layout engine — that would make the module untestable.
 
 The shadow host (`div#gh-line-breakdown-host`) is appended to `document.body` with
-`position: absolute`. `ensureShadow()` only reuses its cached root while that root's host is
+`position: fixed` — viewport coordinates, so the popup follows its anchor while the page
+scrolls (see **Two ways in**, below). `ensureShadow()` only reuses its cached root while that root's host is
 still the element in the document — otherwise anything that replaced the page body would
 leave every later render writing into a detached tree, permanently. The shadow root contains the `<style>` block and a `.popup` div.
 This avoids `overflow: hidden` clipping from ancestor containers and fully isolates
 the widget styles from GitHub's page.
 
-**Event listener cleanup**: `AbortController` is used to tear down `mouseenter`/`mouseleave`
-listeners on both the anchor and the host whenever the anchor changes (avoids accumulating
-duplicate listeners across React re-renders).
+**Never opened by rendering**: `renderLoadingState()`, `renderHeaderIcon()` and
+`renderError(kind)` only write content into the shadow root — they never change `display`.
+Auto-showing on load used to pop the widget open every time you navigated from a PR list into
+a PR, which is exactly when nobody asked for it.
 
-**Hover-only**: the popup is opened by hover and nothing else. `renderLoadingState()`,
-`renderHeaderIcon()` and `renderError(kind)` only write content into the shadow root — they
-never change `display`. Auto-showing on load used to pop the widget open every time you
-navigated from a PR list into a PR, which is exactly when nobody asked for it.
+**The diffstat is optional.** `setContent` used to bail when `findDiffstatAnchor` came up
+empty, which would have made the launcher open an empty box on exactly the pages it exists
+for. It now renders regardless, and the anchor-specific work (the pointer cursor, the error
+dot, `bindDiffstatAnchor`) is what is conditional.
 
 Because of that, a failure needs a signal outside the popup: `renderError` puts a 7px red dot
 (`.gh-breakdown-alert`, in GitHub's own danger colour) on the diffstat chip, and `setContent`
@@ -393,12 +397,50 @@ eight on the default config.
 which owns the page; the content script applies it, syncs the widget's state and remembers it.
 The popup renders from the `hidden` list the content script returns, so both surfaces agree.
 
-### Keyboard access
+### Two ways in — `attachAnchor` and `src/launcher.ts`
 
-GitHub's diffstat is not interactive, so nothing here was reachable without a mouse. The
-anchor now carries `tabindex="0"`, `role="button"` and `aria-expanded`, and Enter or Space
-pins the popup open — after which everything inside it is focusable in the normal way, and
-Escape closes it.
+The diffstat lives in the page header, so it is gone the moment you scroll into the diff —
+which is when you most want to know what you are looking at. `src/launcher.ts` adds a second
+anchor: our icon, placed in the row of icon buttons in GitHub's sticky file toolbar.
+
+`attachAnchor(el)` is the single place the behaviour lives — hover to open, click or
+Enter/Space to hold open, Escape or a second click to close, `aria-expanded` throughout. It is
+called for GitHub's diffstat and for our launcher, so the two are one popup with two ways in
+rather than two implementations that drift. Notes on it:
+
+- The host is looked up **per event**, never captured. `ensureShadow` replaces the host
+  whenever something tore the old one out of the document, and a captured reference would
+  leave every listener bound here writing into a detached node for the rest of the session.
+- `anchors` is a `Set`, pruned of detached nodes in `applyOpenState`. React replaces the
+  diffstat freely, so without that it would hold every node GitHub had ever rendered.
+- `blur` checks `relatedTarget`: tab order runs from the diffstat into the popup's own
+  buttons, and closing on the way there makes every control in it keyboard-unreachable.
+- **Escape is bound with the host**, not with the diffstat. Bound to the anchor, a popup opened
+  from the launcher on a page with no diffstat could not be dismissed from the keyboard.
+
+**Placement is behavioural, not a class-name guess.** Every selector guess in this project has
+eventually broken (the anchor in v0.1.6, the badge twice since), and the Files-changed toolbar
+is client-rendered, so there is no fixture to check a guess against. `findStickyActionRow`
+looks for what the row *is*: a parent holding at least three `button[aria-label]` children,
+with a `position: sticky | fixed` ancestor within five levels. If it finds nothing the
+launcher does not fail — it falls back to a floating button of its own in the same corner
+(`.gh-breakdown-launcher--floating`). The reader always gets a way in.
+
+`ensureLauncher()` exits immediately when the launcher is already hosted and connected. That
+search reads every aria-labelled button on the page — one per file header on a large PR — and
+the content script calls it after every settled batch of mutations.
+
+### Positioning
+
+`positionHost` writes **viewport** coordinates and `openAt` subscribes to `scroll` and
+`resize`, so the popup tracks its anchor. It used to be placed in document coordinates
+(`rect.bottom + window.scrollY`), which is why an open popup slid off the top of the screen as
+soon as you scrolled down into the diff. `left` is clamped to a minimum of 8px so a narrow
+window cannot push it off the left edge.
+
+That was also the end of the pin. Pinning a popup that scrolls away from you is not a feature;
+the launcher is the real answer, because it is reachable at any scroll depth. The internal
+"held open" state remains — `setHeldOpen` — since focus and Escape still need it.
 
 ### Rate limit surfacing
 
@@ -421,12 +463,10 @@ There are two different jobs here, and they belong in different places:
   button to the options page, labelled "Add a token" or "Check your token" depending on
   `hasToken` — being sent to a field you already filled in is its own dead end.
 
-### Pinning and copying
+### Copying
 
-Clicking the anchor toggles `pinned`; a pinned popup ignores `mouseleave` and takes an accent
-border, and Escape releases it. The anchor gets a `title` so the interaction is discoverable.
-Both the pinned class and the copy button are re-applied after every render, since
-`setContent` replaces the popup's contents wholesale.
+The copy button is re-bound after every render, since `setContent` replaces the popup's
+contents wholesale.
 
 `toMarkdown()` in `summary.ts` renders non-empty categories plus a bold total row, and appends
 a note when the file list was capped. Clipboard writes need a focused document, so the button
@@ -465,8 +505,9 @@ appearance rather than to nothing. Custom properties **inherit through a shadow 
 are **not** reset by `all: initial`, which is why this works inside the widget's shadow root.
 
 **Where those styles live.** The widget keeps its stylesheet inside its shadow root, which is
-what a self-contained popup wants. The three single elements placed inside GitHub's own layout
-— the header badges, the tree counts, the error dot — are styled by **`src/injected.css`**,
+what a self-contained popup wants. The four things placed inside GitHub's own layout
+— the header badges, the tree counts, the error dot, the toolbar launcher — are styled by
+**`src/injected.css`**,
 declared in `manifest.json` under `content_scripts.css` so **Chrome injects it**: no injection
 code, and nothing for a page's CSP to object to. The only inline styles left are the ones that
 are data rather than style — a badge's own category colour, and the widget host's `display`,
@@ -560,7 +601,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 pnpm install
 pnpm run build         # outputs to dist/
-pnpm test              # vitest unit tests (213 tests)
+pnpm test              # vitest unit tests (225 tests)
 ```
 
 To load in Chrome:

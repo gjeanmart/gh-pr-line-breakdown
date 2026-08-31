@@ -452,7 +452,13 @@ Two details there are both scars:
   Primer wraps IconButtons in elements of their own, so the buttons in one visual row
   frequently do not share a parent. Counting direct children found no row at all, which is how
   the launcher ended up floating on a page whose toolbar was right there.
-- **Innermost wins, and offset is only the tiebreak.** Choosing by offset alone looks correct
+- **The rightmost cluster in the toolbar row wins.** A toolbar has controls at both ends — the
+  sidebar toggle and the branch picker on the left, the action icons on the right — and it is
+  the right-hand group our icon belongs to. `ROW_BAND` (32px below the highest candidate)
+  narrows the choice to that one row first, so a cluster further down the diff cannot win by
+  reaching further right. Choosing the highest instead landed the launcher in the left-hand
+  pair, where it wrapped onto a second line under the sidebar toggle.
+- **Innermost wins, and vertical offset only picks the row.** Choosing by offset alone looks correct
   and is not: a taller wrapper starts *above* the cluster inside it, so "highest on the page"
   reliably picks the widest possible container. That put the launcher at the far right edge of
   the toolbar, several hundred pixels of empty space from the buttons it belongs with.
@@ -660,7 +666,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 pnpm install
 pnpm run build         # outputs to dist/
-pnpm test              # vitest unit tests (239 tests)
+pnpm test              # vitest unit tests (241 tests)
 ```
 
 To load in Chrome:

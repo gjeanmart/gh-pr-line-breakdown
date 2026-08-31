@@ -211,6 +211,61 @@ describe("placing the launcher", () => {
     expect(button.nextElementSibling!.id).toBe("spacer");
   });
 
+  // The toolbar as it actually is: the sidebar toggle and the branch picker at the left end,
+  // the action icons at the right. Both ends are innermost qualifying clusters on the same row,
+  // and the left pair sits a pixel or two higher — enough for "highest wins" to choose it,
+  // which put the launcher under the sidebar toggle, wrapped onto its own line.
+  it("joins the right-hand icon group, not the controls at the left end", async () => {
+    document.body.innerHTML = `
+      <main>
+        <div id="toolbar" style="position: sticky">
+          <div id="left">
+            <button aria-label="Collapse file tree"></button>
+            <button aria-label="All commits"></button>
+          </div>
+          <div id="right">
+            <button aria-label="Diff settings"></button>
+            <button aria-label="Conversations"></button>
+            <button id="last-icon" aria-label="Copilot"></button>
+          </div>
+        </div>
+      </main>`;
+    const at = (top: number, right: number) => () =>
+      ({ top, right, bottom: 0, left: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}) });
+    document.getElementById("toolbar")!.getBoundingClientRect = at(360, 1850);
+    document.getElementById("left")!.getBoundingClientRect = at(362, 200);
+    document.getElementById("right")!.getBoundingClientRect = at(364, 1840);
+    const { ensureLauncher } = await freshLauncher();
+
+    const button = ensureLauncher();
+
+    expect(button.parentElement!.id).toBe("right");
+    expect(button.previousElementSibling!.id).toBe("last-icon");
+  });
+
+  // A cluster far below the toolbar is part of the diff, not the toolbar, however far right it
+  // sits — so the row band is checked before the rightmost rule is applied.
+  it("ignores a cluster further down the page even when it reaches further right", async () => {
+    document.body.innerHTML = `
+      <main>
+        <div style="position: sticky"><div id="toolbar-icons">
+          <button aria-label="Diff settings"></button>
+          <button aria-label="Conversations"></button>
+        </div></div>
+        <div style="position: sticky"><div id="far-below">
+          <button aria-label="Viewed"></button>
+          <button aria-label="Options"></button>
+        </div></div>
+      </main>`;
+    const at = (top: number, right: number) => () =>
+      ({ top, right, bottom: 0, left: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}) });
+    for (const id of ["toolbar-icons"]) document.getElementById(id)!.getBoundingClientRect = at(360, 1200);
+    for (const id of ["far-below"]) document.getElementById(id)!.getBoundingClientRect = at(900, 1840);
+    const { ensureLauncher } = await freshLauncher();
+
+    expect(ensureLauncher().parentElement!.id).toBe("toolbar-icons");
+  });
+
   // The fallback is the point of the design: every class-name guess in this project has
   // eventually broken, so failing to find the toolbar must not cost the reader the feature.
   it("falls back to a floating button when there is no sticky row", async () => {

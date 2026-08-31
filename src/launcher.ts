@@ -66,6 +66,9 @@ const INTERACTIVE = 'button, [role="button"], a[aria-label]';
 // share a *parent* — which is why counting direct children found nothing to place next to.
 const GROUPING_DEPTH = 3;
 
+// How far below the highest candidate still counts as the same toolbar row.
+const ROW_BAND = 32;
+
 /**
  * The cluster of icon buttons in GitHub's sticky pull-request toolbar, found by what it *is*
  * rather than by what it is called: two or more controls sharing a small container, inside the
@@ -108,8 +111,16 @@ function findStickyActionRow(): HTMLElement | null {
 
   if (innermost.length === 0) return null;
 
-  return innermost.reduce((best, container) =>
-    container.getBoundingClientRect().top < best.getBoundingClientRect().top ? container : best
+  // The topmost band of candidates is the toolbar; anything lower belongs to the diff.
+  const highest = Math.min(...innermost.map((el) => el.getBoundingClientRect().top));
+  const inToolbar = innermost.filter((el) => el.getBoundingClientRect().top - highest <= ROW_BAND);
+
+  // Of the clusters in that row, the rightmost. A toolbar has controls at both ends — the
+  // sidebar toggle and the branch picker on the left, the action icons on the right — and it
+  // is the right-hand group our icon belongs to. Taking the highest instead put the launcher
+  // in the left-hand pair, where it wrapped onto a second line under the sidebar toggle.
+  return inToolbar.reduce((best, container) =>
+    container.getBoundingClientRect().right > best.getBoundingClientRect().right ? container : best
   );
 }
 

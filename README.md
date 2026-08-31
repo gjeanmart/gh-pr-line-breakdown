@@ -53,9 +53,13 @@ constraints are called out where they apply.
 
 ### v0.1.9 — pay the debt, then finish the widget
 
-Three internal fixes first, because all three sit underneath the surface the five features
-touch. Fixing the seams first means building the features once, on ground that has stopped
-moving; batching the features means one round of browser testing rather than five.
+Three internal fixes first, because they sit underneath the surface the features touch —
+fixing the seams first means building the features once, on ground that has stopped moving.
+Batching the features means one round of browser testing rather than five.
+
+*Done so far:* the filename → header map extracted into `src/file_headers.ts` with its
+contract, one stylesheet for everything injected into GitHub, and a `--dry-run` for the
+release script.
 
 1. **Extract the filename → header map** — three separate bugs have come from callers
    disagreeing about what that map holds (a dead eye icon, a badge that jumped sides,
@@ -63,17 +67,15 @@ moving; batching the features means one round of browser testing rather than fiv
 2. **One styling idiom for injected surfaces** — badges and tree counts are styled with
    `cssText` strings while the widget has a stylesheet; two of the features below add UI to
    those same surfaces.
-3. **A dry run for `release.mjs`** — it is already tested end to end in a throwaway repo; a
-   flag turns that into a command.
-4. **Sort categories by size** — category order is matching precedence, which is rarely the
+3. **Sort categories by size** — category order is matching precedence, which is rarely the
    order you want to read.
-5. **Filter shortcuts** — "show only this category" and show/hide everything, so driving the
+4. **Filter shortcuts** — "show only this category" and show/hide everything, so driving the
    eye icons on a wide config takes one click rather than eight.
-6. **Filter from the toolbar popup** — it already shows the numbers and already has a message
+5. **Filter from the toolbar popup** — it already shows the numbers and already has a message
    channel to the page; it just cannot act on them.
-7. **Keyboard access to the widget** — it is hover-and-click only today, so it cannot be
+6. **Keyboard access to the widget** — it is hover-and-click only today, so it cannot be
    opened without a mouse at all.
-8. **Remember the filter per PR** — hidden categories reset on every navigation, which is
+7. **Remember the filter per PR** — hidden categories reset on every navigation, which is
    exactly wrong for someone working through a long review.
 
 ### v0.2.0 — configuration that fits real repos
@@ -177,6 +179,7 @@ Releases are fully automated via GitHub Actions on version tags.
 1. Make sure all changes are merged into `main` and CI is green
 2. Run the release script:
    ```bash
+   pnpm run release 1.1.0 --dry-run   # rehearse first: every check, no changes
    pnpm run release 1.1.0
    ```
    This will run tests, bump the version in `package.json` and `manifest.json`, commit, tag, and push everything to `main`.

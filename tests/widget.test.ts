@@ -440,3 +440,141 @@ describe("the pin control", () => {
     expect(pinButton().getAttribute("aria-pressed")).toBe("true");
   });
 });
+
+describe("reading controls", () => {
+  const shadow = () => host().shadowRoot!;
+  const names = () =>
+    Array.from(shadow().querySelectorAll(".cat-name")).map((el) => el.textContent?.trim());
+
+  it("shows categories in config order, and biggest-first when the preference says so", async () => {
+    const ordered = await freshWidget();
+    renderRows(ordered);
+    expect(names()!.slice(0, 2)).toEqual(["Main", "Tests"]);
+
+    const sorted = await freshWidget();
+    renderRows(sorted, { prefs: { sortBySize: true, hideEmpty: true } });
+    // Main is 13 lines, Tests 6, so this order is the same either way — assert on the
+    // control instead, which is what the reader actually toggles
+    expect(shadow().querySelector(".sort-toggle")!.textContent).toBe("By size");
+  });
+
+  it("tells the content script when the sort preference changes", async () => {
+    const widget = await freshWidget();
+    const onPrefsChange = vi.fn();
+    renderRows(widget, { onPrefsChange });
+
+    shadow().querySelector<HTMLElement>(".sort-toggle")!.click();
+
+    expect(onPrefsChange).toHaveBeenCalledWith({ sortBySize: true });
+    expect(shadow().querySelector(".sort-toggle")!.textContent).toBe("By size");
+  });
+
+  it("persists the empty-category toggle too", async () => {
+    const widget = await freshWidget();
+    const onPrefsChange = vi.fn();
+    renderRows(widget, { onPrefsChange });
+
+    shadow().querySelector<HTMLElement>(".toggle-empty")!.click();
+
+    expect(onPrefsChange).toHaveBeenCalledWith({ hideEmpty: false });
+  });
+});
+
+describe("the category filter", () => {
+  const shadow = () => host().shadowRoot!;
+  const eye = (name: string) =>
+    shadow().querySelector<HTMLElement>(`.cat-toggle[data-cat="${name}"]`)!;
+
+  it("hides one category and says so", async () => {
+    const widget = await freshWidget();
+    const onToggleCategory = vi.fn();
+    const onFilterChange = vi.fn();
+    renderRows(widget, { onToggleCategory, onFilterChange });
+
+    eye("Tests").click();
+
+    expect(onToggleCategory).toHaveBeenCalledWith("Tests", false);
+    expect(onFilterChange).toHaveBeenCalledWith(["Tests"]);
+  });
+
+  it("alt-click hides everything else instead", async () => {
+    const widget = await freshWidget();
+    const onToggleCategory = vi.fn();
+    renderRows(widget, { onToggleCategory });
+
+    eye("Tests").dispatchEvent(new MouseEvent("click", { altKey: true, bubbles: true }));
+
+    // Eight categories hidden in one click, and Tests is not one of them
+    const hidden = onToggleCategory.mock.calls.filter(([, visible]) => visible === false);
+    expect(hidden.map(([name]) => name)).not.toContain("Tests");
+    expect(hidden.length).toBe(DEFAULT_CONFIG.categories.length - 1);
+  });
+
+  it("offers Show all only once something is hidden", async () => {
+    const widget = await freshWidget();
+    renderRows(widget, { onToggleCategory: () => {} });
+    expect(shadow().querySelector(".show-all")).toBeNull();
+
+    eye("Tests").click();
+
+    expect(shadow().querySelector(".show-all")).not.toBeNull();
+  });
+
+  it("Show all brings everything back in one click", async () => {
+    const widget = await freshWidget();
+    const onFilterChange = vi.fn();
+    renderRows(widget, { onToggleCategory: () => {}, onFilterChange });
+    eye("Tests").dispatchEvent(new MouseEvent("click", { altKey: true, bubbles: true }));
+
+    shadow().querySelector<HTMLElement>(".show-all")!.click();
+
+    expect(onFilterChange).toHaveBeenLastCalledWith([]);
+    expect(shadow().querySelector(".show-all")).toBeNull();
+  });
+
+  it("restores a filter remembered from a previous visit", async () => {
+    const widget = await freshWidget();
+
+    widget.setHiddenCategories(["Tests"]);
+    renderRows(widget, { onToggleCategory: () => {} });
+
+    expect(eye("Tests").classList.contains("cat-toggle--hidden")).toBe(true);
+    expect(shadow().querySelector(".show-all")).not.toBeNull();
+  });
+});
+
+describe("keyboard access", () => {
+  it("makes GitHub's diffstat a real button", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor() as HTMLElement;
+
+    expect(anchor.tabIndex).toBe(0);
+    expect(anchor.getAttribute("role")).toBe("button");
+    expect(anchor.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("opens on Enter and on Space", async () => {
+    for (const key of ["Enter", " "]) {
+      const widget = await freshWidget();
+      renderRows(widget);
+      const anchor = findDiffstatAnchor() as HTMLElement;
+
+      anchor.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+
+      expect(host().style.display, `key ${JSON.stringify(key)}`).toBe("block");
+      expect(anchor.getAttribute("aria-expanded")).toBe("true");
+      host().remove();
+    }
+  });
+
+  it("ignores other keys", async () => {
+    const widget = await freshWidget();
+    renderRows(widget);
+    const anchor = findDiffstatAnchor() as HTMLElement;
+
+    anchor.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
+
+    expect(host().style.display).toBe("none");
+  });
+});

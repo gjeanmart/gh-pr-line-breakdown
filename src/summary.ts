@@ -36,9 +36,15 @@ export function fileLabel(count: number): string {
   return count === 1 ? "1 file" : `${count.toLocaleString()} files`;
 }
 
+export type SummaryOptions = {
+  /** Biggest first, rather than in category order — which is matching precedence. */
+  sortBySize?: boolean;
+};
+
 export function summarize(
   breakdown: Map<Category, CategoryStats>,
-  categories: Category[]
+  categories: Category[],
+  options: SummaryOptions = {}
 ): Summary {
   const statsFor = (category: Category) => breakdown.get(category) ?? EMPTY_STATS;
 
@@ -70,13 +76,19 @@ export function summarize(
     };
   });
 
+  // Sorting is stable, so equal categories — every empty one, for instance — keep the order
+  // the config gives them rather than shuffling between renders.
+  const ordered = options.sortBySize
+    ? [...rows].sort((a, b) => b.stats.total - a.stats.total)
+    : rows;
+
   return {
     totalLines,
     totalFiles,
     totalAdded,
     totalRemoved,
     filesLabel: fileLabel(totalFiles),
-    rows,
+    rows: ordered,
     emptyCount: rows.filter((row) => row.isEmpty).length,
   };
 }

@@ -5,13 +5,14 @@ import { findDiffstatAnchor } from "./anchor.js";
 import { safeCssColor } from "./color.js";
 import { escapeAttr, escapeHtml } from "./html.js";
 import { summarize, toMarkdown, type Summary } from "./summary.js";
+import { DEFAULT_PREFS, type Prefs } from "./prefs.js";
 
 const HOST_ID = "gh-line-breakdown-host";
 
 let currentAnchor: Element | null = null;
 let shadowRoot: ShadowRoot | null = null;
 let listenerController: AbortController | null = null;
-let hideEmpty = true;
+let prefs: Prefs = { ...DEFAULT_PREFS };
 let showErrorMarker = false;
 
 /**
@@ -28,6 +29,11 @@ export type WidgetContext = {
   /** Opening the options page needs the extension APIs, which the content script owns. */
   onOpenSettings?: () => void;
   onToggleCategory?: (categoryName: string, visible: boolean) => void;
+  /** How the reader likes to read a breakdown — persisted by the content script. */
+  prefs?: Prefs;
+  onPrefsChange?: (update: Partial<Prefs>) => void;
+  /** Told after any change to the filter, so it can be remembered for this page. */
+  onFilterChange?: (hidden: string[]) => void;
 };
 
 let context: WidgetContext = {};
@@ -50,6 +56,12 @@ const hiddenCategories: Set<string> = new Set();
 // A dot placed on GitHub's diffstat chip when the breakdown could not be loaded. The popup
 // only opens on hover, so without this an API failure is completely silent.
 const MARKER_CLASS = "gh-breakdown-alert";
+
+// Alt on Windows and Linux, Option on a Mac — same event flag, different name on the label.
+const MODIFIER =
+  typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform ?? "")
+    ? "\u2325"
+    : "Alt";
 
 // A pushpin: head and needle. Two primitives, so it cannot render as garbage the way
 // hand-copied path data can, and the filled head reads as "on" at 13px.
@@ -87,13 +99,15 @@ function buildRows(
   categories: Category[]
 ): string {
   const truncated = context.truncated === true;
-  const summary = summarize(breakdown, categories);
+  const summary = summarize(breakdown, categories, { sortBySize: prefs.sortBySize });
 
   const rows = summary.rows
     .map(({ category, stats, percent, fileLabel, isEmpty, addedWidth, removedWidth }) => {
       const isHidden = hiddenCategories.has(category.name);
       const eyeIcon = isHidden ? EYE_SLASH : EYE_OPEN;
-      const eyeTitle = isHidden ? "Show files" : "Hide files";
+      const eyeTitle = isHidden
+        ? `Show ${category.name} files`
+        : `Hide ${category.name} files — ${MODIFIER}-click to show only this category`;
       const eyeClass = isHidden ? "cat-toggle cat-toggle--hidden" : "cat-toggle";
       return `
       <div class="row${isEmpty ? " row--empty" : ""}">
@@ -118,11 +132,21 @@ function buildRows(
 
   const emptyToggle =
     summary.emptyCount > 0
-      ? `<button class="toggle-empty">${hideEmpty ? `Show ${summary.emptyCount} empty` : "Hide empty"}</button>`
+      ? `<button class="toggle-empty">${prefs.hideEmpty ? `Show ${summary.emptyCount} empty` : "Hide empty"}</button>`
       : "";
+  const sortToggle = `<button class="sort-toggle" title="${
+    prefs.sortBySize
+      ? "Sorted biggest first — switch back to category order"
+      : "In category order, which is matching precedence — switch to biggest first"
+  }">${prefs.sortBySize ? "By size" : "By order"}</button>`;
+  const anyHidden = summary.rows.some((row) => hiddenCategories.has(row.category.name));
+  const showAll = anyHidden
+    ? `<button class="show-all" title="Show every category again">Show all</button>`
+    : "";
   const copyButton = `<button class="copy-md" title="Copy this breakdown as a markdown table">Copy markdown</button>`;
   const quota = buildQuotaHint();
-  const footer = copyButton + emptyToggle + (quota ? `<span class="footer-gap"></span>${quota}` : "");
+  const footer =
+    sortToggle + copyButton + emptyToggle + showAll + (quota ? `<span class="footer-gap"></span>${quota}` : "");
 
   return `
     <div class="header">
@@ -134,7 +158,7 @@ function buildRows(
         <span class="total-removed">\u2212${summary.totalRemoved.toLocaleString()}</span>
       </span>
     </div>
-    <div class="rows${hideEmpty ? " hide-empty" : ""}">${rows}</div>
+    <div class="rows${prefs.hideEmpty ? " hide-empty" : ""}">${rows}</div>
     ${footer ? `<div class="footer">${footer}</div>` : ""}
   `;
 }
@@ -200,7 +224,9 @@ export function renderHeaderIcon(
   ctx: WidgetContext = {}
 ): void {
   context = ctx;
+  if (ctx.prefs) prefs = ctx.prefs;
   showErrorMarker = false;
+  lastRender = { breakdown, categories };
   setContent(buildRows(breakdown, categories));
 }
 
@@ -210,6 +236,35 @@ export function getHiddenCategories(): ReadonlySet<string> {
 
 export function resetCategoryFilter(): void {
   hiddenCategories.clear();
+}
+
+/** Restores a filter remembered from a previous visit to this page. */
+export function setHiddenCategories(names: Iterable<string>): void {
+  hiddenCategories.clear();
+  for (const name of names) hiddenCategories.add(name);
+}
+
+// Every change to the filter goes through here: it applies the change to the page, tells the
+// content script so it can be remembered, and re-renders so the rows agree with reality.
+// Three callers now (an eye, "only this", "show all"), which is exactly why it is one function.
+function applyFilter(hidden: Set<string>, allCategories: string[]): void {
+  for (const name of allCategories) {
+    const shouldHide = hidden.has(name);
+    if (shouldHide === hiddenCategories.has(name)) continue;
+    if (shouldHide) hiddenCategories.add(name);
+    else hiddenCategories.delete(name);
+    context.onToggleCategory?.(name, !shouldHide);
+  }
+  context.onFilterChange?.(Array.from(hiddenCategories));
+  rerender();
+}
+
+// The last rendered breakdown, so a control can re-render without the content script.
+let lastRender: { breakdown: Map<Category, CategoryStats>; categories: Category[] } | null = null;
+
+function rerender(): void {
+  if (!lastRender) return;
+  setContent(buildRows(lastRender.breakdown, lastRender.categories));
 }
 
 // ── Core render ───────────────────────────────────────────────────────────────
@@ -227,14 +282,11 @@ function setContent(html: string): void {
   const shadow = ensureShadow();
   shadow.querySelector<HTMLElement>(".popup")!.innerHTML = html;
 
-  shadow.querySelector(".toggle-empty")?.addEventListener("click", () => {
-    hideEmpty = !hideEmpty;
-    shadow.querySelector(".rows")?.classList.toggle("hide-empty", hideEmpty);
-    const btn = shadow.querySelector<HTMLElement>(".toggle-empty");
-    if (btn) {
-      const n = shadow.querySelectorAll(".row--empty").length;
-      btn.textContent = hideEmpty ? `Show ${n} empty` : "Hide empty";
-    }
+  shadow.querySelector(".toggle-empty")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    prefs = { ...prefs, hideEmpty: !prefs.hideEmpty };
+    context.onPrefsChange?.({ hideEmpty: prefs.hideEmpty });
+    rerender();
   });
 
   shadow.querySelector<HTMLElement>(".pin-toggle")?.addEventListener("click", (e) => {
@@ -265,24 +317,39 @@ function setContent(html: string): void {
     }
   }
 
+  const categoryNames = lastRender?.categories.map((category) => category.name) ?? [];
+
   if (onToggleCategory) {
     for (const btn of Array.from(shadow.querySelectorAll<HTMLElement>(".cat-toggle"))) {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const catName = btn.dataset.cat!;
-        const nowHidden = !hiddenCategories.has(catName);
-        if (nowHidden) {
-          hiddenCategories.add(catName);
-        } else {
-          hiddenCategories.delete(catName);
+      btn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const name = btn.dataset.cat!;
+
+        if ((event as MouseEvent).altKey) {
+          // Show only this one. On a nine-category config that is one click instead of eight.
+          applyFilter(new Set(categoryNames.filter((other) => other !== name)), categoryNames);
+          return;
         }
-        onToggleCategory(catName, !nowHidden);
-        btn.innerHTML = nowHidden ? EYE_SLASH : EYE_OPEN;
-        btn.title = nowHidden ? "Show files" : "Hide files";
-        btn.classList.toggle("cat-toggle--hidden", nowHidden);
+
+        const hidden = new Set(hiddenCategories);
+        if (hidden.has(name)) hidden.delete(name);
+        else hidden.add(name);
+        applyFilter(hidden, categoryNames);
       });
     }
   }
+
+  shadow.querySelector<HTMLElement>(".show-all")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    applyFilter(new Set(), categoryNames);
+  });
+
+  shadow.querySelector<HTMLElement>(".sort-toggle")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    prefs = { ...prefs, sortBySize: !prefs.sortBySize };
+    context.onPrefsChange?.({ sortBySize: prefs.sortBySize });
+    rerender();
+  });
 
   const host = document.getElementById(HOST_ID) as HTMLElement;
 
@@ -352,6 +419,7 @@ function applyPinnedState(): void {
 
   if (currentAnchor instanceof HTMLElement) {
     currentAnchor.title = pinned ? "Click to unpin the line breakdown" : "Click to pin the line breakdown";
+    currentAnchor.setAttribute("aria-expanded", String(pinned));
   }
 }
 
@@ -388,6 +456,22 @@ function bindHoverListeners(host: HTMLElement, anchor: Element): void {
   // Click the diffstat to pin, click again to release. GitHub's chip is not interactive, so
   // there is nothing to get in the way.
   anchor.addEventListener("click", (event) => {
+    event.preventDefault();
+    setPinned(!pinned);
+  }, { signal });
+
+  // GitHub's diffstat is not interactive, so nothing here is reachable by keyboard unless we
+  // make it so: the chip becomes a button that opens the popup, and everything inside the
+  // popup is focusable once it is open.
+  if (anchor instanceof HTMLElement) {
+    anchor.tabIndex = 0;
+    anchor.setAttribute("role", "button");
+    anchor.setAttribute("aria-expanded", String(pinned));
+  }
+
+  anchor.addEventListener("keydown", (event) => {
+    const key = (event as KeyboardEvent).key;
+    if (key !== "Enter" && key !== " ") return;
     event.preventDefault();
     setPinned(!pinned);
   }, { signal });
@@ -649,6 +733,17 @@ const STYLES = `
     opacity: 1;
     color: var(--fgColor-accent, var(--color-accent-fg, #0969da));
   }
+
+  .sort-toggle, .show-all {
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: inherit;
+    font-size: 11px;
+    color: var(--fgColor-accent, var(--color-accent-fg, #0969da));
+    cursor: pointer;
+  }
+  .sort-toggle:hover, .show-all:hover { text-decoration: underline; }
 
   .copy-md {
     background: none;

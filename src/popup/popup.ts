@@ -9,6 +9,18 @@ import type { RateLimit } from "../github_api.js";
 
 const content = document.getElementById("content")!;
 
+// The same two icons the widget uses, so one surface does not teach a different vocabulary
+// from the other.
+const EYE_OPEN =
+  `<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">` +
+  `<path d="M8 2c-1.981 0-3.671.992-4.933 2.078C1.797 5.169.88 6.423.43 7.1a1.98 1.98 0 0 0 0 1.8c.45.677 1.367 1.931 2.637 3.022C4.33 13.008 6.019 14 8 14c1.981 0 3.671-.992 4.933-2.078 1.27-1.091 2.187-2.345 2.637-3.022a1.98 1.98 0 0 0 0-1.8c-.45-.677-1.367-1.931-2.637-3.022C11.67 2.992 9.981 2 8 2ZM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0-1.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/></svg>`;
+const EYE_SLASH =
+  EYE_OPEN.replace("</svg>", "") +
+  `<line x1="2.5" y1="2.5" x2="13.5" y2="13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+
+let tabId: number | undefined;
+let hiddenCategories = new Set<string>();
+
 const TRUNCATION_NOTE =
   "This PR has more files than the GitHub API returns (3,000 max), so these totals are partial.";
 let hideEmpty = true;
@@ -43,6 +55,7 @@ function renderBreakdown(
   rate?: RateLimit | null,
   hasToken = false
 ): void {
+  const rerender = () => renderBreakdown(files, categories, truncated, rate, hasToken);
   const summary = summarize(buildBreakdown(files, categories), categories);
 
   const rows = summary.rows
@@ -58,6 +71,11 @@ function renderBreakdown(
         <span class="stat stat-added">+${stats.added.toLocaleString()}</span>
         <span class="stat stat-removed">\u2212${stats.removed.toLocaleString()}</span>
         <span class="pct">${percent}%</span>
+        <button class="cat-toggle${hiddenCategories.has(category.name) ? " cat-toggle--hidden" : ""}"
+                data-cat="${escapeAttr(category.name)}"
+                title="${hiddenCategories.has(category.name) ? "Show" : "Hide"} ${escapeAttr(category.name)} files"
+                aria-pressed="${hiddenCategories.has(category.name)}"
+        >${hiddenCategories.has(category.name) ? EYE_SLASH : EYE_OPEN}</button>
       </div>`)
     .join("");
 
@@ -93,6 +111,30 @@ function renderBreakdown(
     }, 1500);
   });
 
+  // Filtering happens in the page, so the popup asks the content script to do it. Without a
+  // tab we are on some other page entirely and there is nothing to filter.
+  for (const button of Array.from(content.querySelectorAll<HTMLButtonElement>(".cat-toggle"))) {
+    button.addEventListener("click", async () => {
+      const name = button.dataset.cat!;
+      const nowHidden = !hiddenCategories.has(name);
+      if (tabId === undefined) return;
+
+      try {
+        await chrome.tabs.sendMessage(tabId, {
+          type: "setCategoryVisible",
+          category: name,
+          visible: !nowHidden,
+        });
+      } catch {
+        return; // the page went away; leave the popup showing what is actually true
+      }
+
+      if (nowHidden) hiddenCategories.add(name);
+      else hiddenCategories.delete(name);
+      rerender();
+    });
+  }
+
   content.querySelector(".toggle-empty")?.addEventListener("click", () => {
     hideEmpty = !hideEmpty;
     content.querySelector(".rows")?.classList.toggle("hide-empty", hideEmpty);
@@ -107,6 +149,7 @@ function renderBreakdown(
 async function init(): Promise<void> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const url = tab?.url ?? "";
+  tabId = tab?.id;
 
   const page = parseGitHubUrl(url);
   if (!page) {
@@ -123,6 +166,7 @@ async function init(): Promise<void> {
     truncated?: boolean;
     rate?: RateLimit | null;
     hasToken?: boolean;
+    hidden?: string[];
   };
   try {
     response = await chrome.tabs.sendMessage(tab.id!, { type: "getBreakdown" });
@@ -140,6 +184,7 @@ async function init(): Promise<void> {
     return;
   }
 
+  hiddenCategories = new Set(response.hidden ?? []);
   renderBreakdown(
     response.files!,
     response.categories!,

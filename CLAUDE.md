@@ -23,6 +23,7 @@ gh-pr-line-breakdown/
 │   ├── color.ts            # category colour safety + readable badge text (pure)
 │   ├── html.ts             # escapeHtml / escapeAttr, shared by all three UIs (pure)
 │   ├── summary.ts          # totals, percentages, bar widths, markdown export (pure)
+│   ├── prefs.ts            # sort/empty preferences + per-page filter, in storage.local
 │   ├── background.ts       # service worker: opens the options page on request
 │   ├── badges.ts           # injects colored category pill badges into file diff headers
 │   ├── file_headers.ts     # filename → header map + what we collapsed, with its contract
@@ -54,6 +55,7 @@ gh-pr-line-breakdown/
 │   ├── summary.test.ts     # breakdown arithmetic, markdown, tree rollup, escaping (pure)
 │   ├── file_tree.test.ts   # jsdom tests for the sidebar counts
 │   ├── file_headers.test.ts # the header map's contract, including staleness
+│   ├── prefs.test.ts       # preference round-trips + per-page filter eviction
 │   └── fixtures/           # captured GitHub markup (PR header, commit header)
 ├── package.json
 ├── tsconfig.json
@@ -365,6 +367,39 @@ type WidgetContext = {
 Callbacks live in the context because `widget.ts` deliberately touches no `chrome.*` API — it
 stays DOM-only and therefore testable under jsdom.
 
+### Reading controls and remembered state
+
+`src/prefs.ts` holds what the reader has set up, in `chrome.storage.local` — per-device UI
+state, not something to sync.
+
+Two kinds, deliberately treated differently:
+
+- **Display preferences** (`sortBySize`, `hideEmpty`) are global. They are how you like to
+  read a breakdown, not a fact about one PR.
+- **Hidden categories are per page path.** "I have dealt with the tests in this PR" says
+  nothing about the next one, and a filter that followed you to an unrelated diff would be
+  worse than not remembering at all. The twenty most recently used pages are kept; a revisit
+  counts as recent, so the PR you are actually working through is never the one evicted.
+
+`widget.ts` still touches no `chrome.*` API: prefs arrive in the `WidgetContext` and changes
+go back out through `onPrefsChange` / `onFilterChange`, which is what keeps it testable.
+
+**Every filter change goes through `applyFilter()`** — an eye, an ⌥-click, and "Show all" are
+three callers of one function, which is why persistence cannot be forgotten by one of them.
+⌥-click (Alt elsewhere) hides everything *except* the category clicked: one click instead of
+eight on the default config.
+
+**The popup can filter too.** It sends `{ type: "setCategoryVisible" }` to the content script,
+which owns the page; the content script applies it, syncs the widget's state and remembers it.
+The popup renders from the `hidden` list the content script returns, so both surfaces agree.
+
+### Keyboard access
+
+GitHub's diffstat is not interactive, so nothing here was reachable without a mouse. The
+anchor now carries `tabindex="0"`, `role="button"` and `aria-expanded`, and Enter or Space
+pins the popup open — after which everything inside it is focusable in the normal way, and
+Escape closes it.
+
 ### Rate limit surfacing
 
 Every GitHub response carries `X-RateLimit-Remaining` / `-Limit` / `-Reset`;
@@ -525,7 +560,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 pnpm install
 pnpm run build         # outputs to dist/
-pnpm test              # vitest unit tests (189 tests)
+pnpm test              # vitest unit tests (213 tests)
 ```
 
 To load in Chrome:

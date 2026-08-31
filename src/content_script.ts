@@ -6,8 +6,11 @@ import {
   renderError,
   getHiddenCategories,
   resetCategoryFilter,
+  setHiddenCategories,
   type WidgetContext,
 } from "./widget.js";
+import { loadPrefs, savePrefs, loadHiddenCategories, saveHiddenCategories, DEFAULT_PREFS } from "./prefs.js";
+import type { Prefs } from "./prefs.js";
 import { fetchFiles } from "./github_api.js";
 import type { RateLimit } from "./github_api.js";
 import { parseGitHubPage } from "./page.js";
@@ -26,10 +29,13 @@ let cachedFiles: FileEntry[] | null = null;
 let cachedError: boolean = false;
 let cachedTruncated: boolean = false;
 let cachedRate: RateLimit | null = null;
+let prefs: Prefs = { ...DEFAULT_PREFS };
+// Kept so a message from the popup can act on the same lists the widget acts on.
+let lastFilesByCategory: Map<string, string[]> = new Map();
 let lastHref = location.href;
 
 async function init(): Promise<void> {
-  currentConfig = await loadConfig();
+  [currentConfig, prefs] = await Promise.all([loadConfig(), loadPrefs()]);
   await runBreakdown();
   observeChanges();
   watchConfigChanges();
@@ -78,7 +84,9 @@ async function runBreakdown(): Promise<void> {
     cachedFiles = null;
     cachedError = false;
     cachedTruncated = false;
-    resetCategoryFilter();
+    // A filter belongs to the PR it was set on, so it is restored per page rather than
+    // carried across — see prefs.ts.
+    setHiddenCategories(await loadHiddenCategories(page.path));
     clearBadges();
     clearTreeCounts();
     renderLoadingState(widgetContext());
@@ -99,6 +107,7 @@ async function runBreakdown(): Promise<void> {
   const { categories } = currentConfig;
   const breakdown = buildBreakdown(cachedFiles, categories);
   const filesByCategory = buildFilesByCategory(cachedFiles, categories);
+  lastFilesByCategory = filesByCategory;
 
   renderHeaderIcon(breakdown, categories, {
     ...widgetContext(),
@@ -127,8 +136,16 @@ function widgetContext(): WidgetContext {
     truncated: cachedTruncated,
     rate: cachedRate,
     hasToken: Boolean(currentConfig?.githubToken),
+    prefs,
     // openOptionsPage is not available to content scripts — the service worker answers this
     onOpenSettings: () => void chrome.runtime.sendMessage({ type: "openOptions" }),
+    onPrefsChange: (update) => {
+      prefs = { ...prefs, ...update };
+      void savePrefs(update);
+    },
+    onFilterChange: (hidden) => {
+      if (cachedPath) void saveHiddenCategories(cachedPath, hidden);
+    },
   };
 }
 
@@ -172,6 +189,21 @@ function observeChanges(): void {
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.type === "setCategoryVisible") {
+    // The popup shows the same numbers as the widget; this is how it acts on them.
+    setFilesVisible(lastFilesByCategory.get(msg.category) ?? [], msg.visible === true);
+
+    const hidden = new Set(getHiddenCategories());
+    if (msg.visible === true) hidden.delete(msg.category);
+    else hidden.add(msg.category);
+    setHiddenCategories(hidden);
+    if (cachedPath) void saveHiddenCategories(cachedPath, Array.from(hidden));
+
+    void runBreakdown();
+    sendResponse({ ok: true });
+    return;
+  }
+
   if (msg.type !== "getBreakdown") return;
   if (!currentConfig || cachedPath === null) {
     sendResponse({ status: "loading" });
@@ -192,6 +224,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     truncated: cachedTruncated,
     rate: cachedRate,
     hasToken: Boolean(currentConfig.githubToken),
+    hidden: Array.from(getHiddenCategories()),
   });
 });
 

@@ -131,10 +131,19 @@ async function runBreakdown(): Promise<void> {
   // its lazy rendering always follows up with more, so nothing stays missing for long.)
   if (written > 0) observer?.takeRecords();
 
-  // Re-apply any active category filters to the freshly-injected DOM
+  // Re-apply the filter to the freshly-injected DOM — in both directions.
+  //
+  // Collapsing needs re-applying because the DOM was just replaced. Expanding needs it
+  // because it can fail: the click goes through a header element we stored earlier, and
+  // GitHub re-renders those constantly, so an expand triggered from the widget may land on a
+  // stale node and do nothing. setFilesVisible keeps the file on its collapsed-by-us list
+  // when that happens, so this retries it here against a header that is current.
+  //
+  // The visible-category sweep costs nothing on a settled page: setFilesVisible skips any
+  // file it has no record of collapsing, which after a successful expand is all of them.
   const hidden = getHiddenCategories();
   for (const [catName, filenames] of filesByCategory) {
-    if (hidden.has(catName)) setFilesVisible(filenames, false);
+    setFilesVisible(filenames, !hidden.has(catName));
   }
 }
 

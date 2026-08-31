@@ -7,6 +7,7 @@
 // per-function tests all passed. Hence this one, driving both halves over the real DOM.
 import { describe, it, expect, beforeEach } from "vitest";
 import { injectBadges, setFilesVisible, clearBadges } from "../src/badges.js";
+import { headerFor as storedHeaderFor, filesCollapsedByUs } from "../src/file_headers.js";
 import type { Category } from "../src/config.js";
 import COMMIT_PAGE from "./fixtures/commit_header.html?raw";
 
@@ -233,5 +234,44 @@ describe("category filter over captured commit markup", () => {
 
     // Never ours, never touched — while README.md round-trips normally
     expect(clicks()).toEqual({ "CLAUDE.md": 0, "README.md": 2 });
+  });
+});
+
+// "Show all" removed its own button, cleared the filter, and left every file collapsed.
+//
+// The expand goes through a header element stored when the badge was injected, and GitHub
+// re-renders those constantly (rule 4 in file_headers.ts). Handed a stale one, expandFile
+// finds no control and does nothing — but setFilesVisible used to call forgetCollapsedByUs
+// regardless. So the record of what we had collapsed was thrown away while the files stayed
+// shut, and nothing was left that knew to try again.
+describe("expanding against a header that has gone stale", () => {
+  it("keeps the record when the expand cannot land, so a later pass can retry", async () => {
+    await injectBadges(FILES, CATEGORIES);
+    const clicks = wireToggles(["CLAUDE.md", "README.md"]);
+
+    setFilesVisible(["CLAUDE.md"], false);
+    expect(clicks()["CLAUDE.md"]).toBe(1);
+
+    // GitHub replaces the header. Our stored element is now detached, and clicking a control
+    // inside it changes nothing the reader can see.
+    const live = storedHeaderFor("CLAUDE.md")!;
+    const detached = live.cloneNode(true) as HTMLElement;
+    live.replaceWith(detached.cloneNode(true) as HTMLElement);
+
+    setFilesVisible(["CLAUDE.md"], true);
+
+    // Still on the list, so the next pass will try again against a current header
+    expect(filesCollapsedByUs()).toContain("CLAUDE.md");
+  });
+
+  it("expands and forgets once the header is current again", async () => {
+    await injectBadges(FILES, CATEGORIES);
+    const clicks = wireToggles(["CLAUDE.md", "README.md"]);
+
+    setFilesVisible(["CLAUDE.md"], false);
+    setFilesVisible(["CLAUDE.md"], true);
+
+    expect(clicks()["CLAUDE.md"]).toBe(2);
+    expect(filesCollapsedByUs()).not.toContain("CLAUDE.md");
   });
 });

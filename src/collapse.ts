@@ -72,9 +72,16 @@ export function collapseFile(header: HTMLElement): boolean {
 }
 
 /** Expand one file, if it is currently collapsed. */
-export function expandFile(header: HTMLElement): void {
+/**
+ * Returns true only when it actually clicked — mirroring collapseFile, and for the same
+ * reason: the caller records which files it collapsed, and a silent no-op here used to clear
+ * that record anyway. A stale header (rule 4 in file_headers.ts) makes this find nothing.
+ */
+export function expandFile(header: HTMLElement): boolean {
   const toggle = findCollapseToggle(header);
-  if (toggle?.collapsed) toggle.button.click();
+  if (!toggle?.collapsed) return false;
+  toggle.button.click();
+  return true;
 }
 
 /** Whether a file header exposes a collapse control at all. */

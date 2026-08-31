@@ -150,7 +150,16 @@ export function restoreFilteredFiles(): void {
 export function setFilesVisible(filenames: string[], visible: boolean): void {
   for (const filename of filenames) {
     const header = headerFor(filename);
-    if (!header) continue;
+
+    // Rule 4 in file_headers.ts: stored headers go stale, and tolerating that is the caller's
+    // job. It cannot be skipped here, because a detached header is not detectably broken from
+    // the inside — it still carries its chevron, so findCollapseToggle finds one and clicking
+    // it reports success while changing nothing the reader can see. That is what made
+    // "Show all" clear the filter, remove its own button, and leave every file collapsed.
+    //
+    // Skipping leaves the file on its collapsed-by-us list, so the next pass retries against
+    // a header the current DOM actually contains.
+    if (!header?.isConnected) continue;
 
     if (!visible) {
       // Skip files we already collapsed. content_script re-applies active filters after
@@ -160,8 +169,12 @@ export function setFilesVisible(filenames: string[], visible: boolean): void {
       if (collapseFile(header)) markCollapsedByUs(filename);
     } else {
       if (!wasCollapsedByUs(filename)) continue;
-      expandFile(header);
-      forgetCollapsedByUs(filename);
+      // Forget only once it is genuinely open. Forgetting unconditionally is what made
+      // "Show all" look broken: a stale header makes expandFile a no-op, so the file stayed
+      // collapsed while the record of having collapsed it was thrown away — after which
+      // nothing knew to try again, and the reader was left with a collapsed category and no
+      // control to undo it. Kept, the next pass retries against a refreshed header.
+      if (expandFile(header)) forgetCollapsedByUs(filename);
     }
   }
 }

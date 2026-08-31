@@ -345,6 +345,20 @@ header lost its bottom border — and the hand-rolled ancestor walk (`diffTarget
 pages, "first ancestor whose parent has >1 children" on commit pages) never worked on
 commit pages at all.
 
+**A stale header is not detectably broken from the inside.** `setFilesVisible` checks
+`header.isConnected` before touching anything, because a detached header still carries its
+chevron: `findCollapseToggle` finds one, clicking it reports success, and nothing the reader
+can see changes. Rule 4 says callers tolerate staleness — this is what tolerating it costs.
+
+Skipping leaves the file on the collapsed-by-us list, and the content script now re-applies
+the filter in **both** directions each pass, so the expand is retried against a header the
+live DOM contains. Cheap on a settled page: `setFilesVisible` skips any file it has no record
+of collapsing.
+
+Without that pair, "Show all" cleared the filter, removed its own button and left every file
+collapsed — the record of what to reopen was discarded on a click that had done nothing, and
+nothing was left that knew to try again.
+
 `collapseFile` returns `true` only when it actually clicked, so `filteredFiles: Set<string>`
 holds exactly the files *we* collapsed and the filter never expands a file the user (or
 GitHub, for large diffs) had already collapsed. `setFilesVisible` also skips files already
@@ -671,7 +685,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 pnpm install
 pnpm run build         # outputs to dist/
-pnpm test              # vitest unit tests (249 tests)
+pnpm test              # vitest unit tests (251 tests)
 ```
 
 To load in Chrome:

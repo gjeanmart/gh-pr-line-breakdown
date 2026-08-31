@@ -125,3 +125,39 @@ describe("escaping", () => {
     expect(escapeHtml("&lt;")).toBe("&amp;lt;");
   });
 });
+
+describe("sorting by size", () => {
+  it("keeps category order by default, because that is matching precedence", () => {
+    expect(summaryOf().rows.map((r) => r.category.name)).toEqual(["Tests", "Docs", "Main"]);
+  });
+
+  it("puts the biggest first when asked", () => {
+    const sorted = summarize(buildBreakdown(FILES, CATEGORIES), CATEGORIES, { sortBySize: true });
+
+    // Main has 80 lines, Tests 50, Docs nothing
+    expect(sorted.rows.map((r) => r.category.name)).toEqual(["Main", "Tests", "Docs"]);
+  });
+
+  it("sorts stably, so equal categories do not shuffle between renders", () => {
+    const categories = [
+      { name: "A", patterns: ["**/*.a"] },
+      { name: "B", patterns: ["**/*.b"] },
+      { name: "C", patterns: ["**/*"], fallback: true as const },
+    ];
+    const empty = buildBreakdown([], categories);
+
+    const once = summarize(empty, categories, { sortBySize: true }).rows.map((r) => r.category.name);
+    const twice = summarize(empty, categories, { sortBySize: true }).rows.map((r) => r.category.name);
+
+    expect(once).toEqual(["A", "B", "C"]);
+    expect(twice).toEqual(once);
+  });
+
+  it("counts the same either way", () => {
+    const ordered = summaryOf();
+    const sorted = summarize(buildBreakdown(FILES, CATEGORIES), CATEGORIES, { sortBySize: true });
+
+    expect(sorted.totalLines).toBe(ordered.totalLines);
+    expect(sorted.emptyCount).toBe(ordered.emptyCount);
+  });
+});

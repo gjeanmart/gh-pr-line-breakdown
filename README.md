@@ -15,7 +15,11 @@ The popup header shows the total line and file counts across all categories. Eac
 
 On the Files Changed tab, `+N −N` line counts are also injected directly into the file tree sidebar next to every file and folder. Folder counts roll up all files underneath them.
 
-The popup footer has a **Copy markdown** button, which puts the breakdown on your clipboard as a table ready to paste into a PR description or a review comment.
+The popup footer has a **Copy markdown** button, which puts the breakdown on your clipboard as a table ready to paste into a PR description or a review comment. **By order / By size** switches between category order — which is matching precedence — and biggest-first.
+
+The eye icon on each row collapses that category's files in the diff. **⌥-click** (Alt elsewhere) hides everything *except* that category, and **Show all** brings them back. Whatever you hide is remembered for that PR, so coming back to a review picks up where you left off. The toolbar popup has the same eye icons and drives the same filter.
+
+Everything is reachable from the keyboard: the diffstat is focusable, Enter or Space pins the popup open, and Escape closes it.
 
 If the breakdown can't be loaded — a rate limit, or a private repo without a token — a small red dot appears on the diffstat; hover it for the reason, and for a link straight to the token field. Without a token GitHub allows 60 API calls an hour, so when you get close the widget and popup start telling you how many are left and when the hour resets. The **Settings** tab shows the number at any time, along with your ceiling — check it after adding a token to confirm the token works.
 
@@ -51,32 +55,14 @@ The token is stored in `chrome.storage.local`, so it stays on this machine and i
 Ordered, not a wish list. Each release has a reason to come when it does, and the two ordering
 constraints are called out where they apply.
 
-### v0.1.9 — pay the debt, then finish the widget
+### v0.1.9 — pay the debt, then finish the widget · **complete, awaiting release**
 
-Three internal fixes first, because they sit underneath the surface the features touch —
-fixing the seams first means building the features once, on ground that has stopped moving.
-Batching the features means one round of browser testing rather than five.
-
-*Done so far:* the filename → header map extracted into `src/file_headers.ts` with its
-contract, one stylesheet for everything injected into GitHub, and a `--dry-run` for the
-release script.
-
-1. **Extract the filename → header map** — three separate bugs have come from callers
-   disagreeing about what that map holds (a dead eye icon, a badge that jumped sides,
-   duplicate badges). It needs its own module with the contract written down.
-2. **One styling idiom for injected surfaces** — badges and tree counts are styled with
-   `cssText` strings while the widget has a stylesheet; two of the features below add UI to
-   those same surfaces.
-3. **Sort categories by size** — category order is matching precedence, which is rarely the
-   order you want to read.
-4. **Filter shortcuts** — "show only this category" and show/hide everything, so driving the
-   eye icons on a wide config takes one click rather than eight.
-5. **Filter from the toolbar popup** — it already shows the numbers and already has a message
-   channel to the page; it just cannot act on them.
-6. **Keyboard access to the widget** — it is hover-and-click only today, so it cannot be
-   opened without a mouse at all.
-7. **Remember the filter per PR** — hidden categories reset on every navigation, which is
-   exactly wrong for someone working through a long review.
+Three internal fixes first — the filename → header map extracted into `src/file_headers.ts`
+with its contract, one stylesheet for everything injected into GitHub, and a `--dry-run` for
+the release script — then the features on the surface they sit under: sort by size, filter
+shortcuts, filtering from the popup, keyboard access, a filter remembered per PR, and a
+launcher in GitHub's sticky file toolbar so the breakdown is still reachable once the page
+header has scrolled away.
 
 ### v0.2.0 — configuration that fits real repos
 

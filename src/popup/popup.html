@@ -69,6 +69,23 @@
     }
     .quota-line--out { color: var(--danger); }
 
+    .cat-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 18px;
+      padding: 0;
+      background: none;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      color: var(--fg-subtle);
+      opacity: .55;
+    }
+    .cat-toggle:hover { opacity: 1; background: var(--bg-subtle); }
+    .cat-toggle--hidden { opacity: 1; color: var(--danger); }
+
     .rows-footer {
       display: flex;
       align-items: center;

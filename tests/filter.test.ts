@@ -5,7 +5,7 @@
 // two halves disagreed in v0.1.6-dev — badges landed on the inner file-path section, whose
 // subtree does not contain the chevron — and the eye icon silently did nothing. Synthetic
 // per-function tests all passed. Hence this one, driving both halves over the real DOM.
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { injectBadges, setFilesVisible, clearBadges } from "../src/badges.js";
 import { headerFor as storedHeaderFor, filesCollapsedByUs } from "../src/file_headers.js";
 import type { Category } from "../src/config.js";
@@ -273,5 +273,37 @@ describe("expanding against a header that has gone stale", () => {
 
     expect(clicks()["CLAUDE.md"]).toBe(2);
     expect(filesCollapsedByUs()).not.toContain("CLAUDE.md");
+  });
+});
+
+// The debug flag exists so a real page can be diagnosed without a second copy of the logic.
+// It has to be off by default and silent when off, or it is a performance bug in waiting.
+describe("the debug trace", () => {
+  it("says nothing unless the flag is set", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    await injectBadges(FILES, CATEGORIES);
+
+    setFilesVisible(["CLAUDE.md"], false);
+
+    expect(log).not.toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it("explains each file's outcome when it is", async () => {
+    vi.resetModules();
+    localStorage.setItem("glb-debug", "1");
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const badges = await import("../src/badges.js");
+    await badges.injectBadges(FILES, CATEGORIES);
+    wireToggles(["CLAUDE.md", "README.md"]);
+
+    badges.setFilesVisible(["CLAUDE.md", "does/not/exist.ts"], false);
+
+    const lines = log.mock.calls.map((call) => call.join(" "));
+    expect(lines.some((l) => l.includes("CLAUDE.md") && l.includes("control found"))).toBe(true);
+    expect(lines.some((l) => l.includes("does/not/exist.ts") && l.includes("no header"))).toBe(true);
+
+    log.mockRestore();
+    localStorage.removeItem("glb-debug");
   });
 });

@@ -685,7 +685,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 pnpm install
 pnpm run build         # outputs to dist/
-pnpm test              # vitest unit tests (251 tests)
+pnpm test              # vitest unit tests (253 tests)
 ```
 
 To load in Chrome:
@@ -851,6 +851,24 @@ that drops the element under test is worse than no fixture, because it makes a p
 lie. `tests/filter.test.ts` exists specifically to drive badge injection and collapse
 *together* over this markup, which is the seam where per-function tests agreed with each
 other and disagreed with GitHub.
+
+## Debugging the collapse filter
+
+Set the flag in the page console and reload:
+
+```js
+localStorage.setItem("glb-debug", "1");   // localStorage.removeItem("glb-debug") to stop
+```
+
+`setFilesVisible` then logs one line per file saying what it did and why — no header stored,
+header stale, no control found (with how far it climbed and whether the scope was ambiguous),
+or the control it found and the file's current state.
+
+**This logs from inside the real code path, not from a copy of it.** A standalone console
+script was tried first and deleted: it reimplemented `findStickyActionRow`, and was reporting
+the wrong answer within two commits because the code moved and the copy did not.
+Instrumentation that ships with the thing it describes cannot drift. `src/debug.ts` is the
+flag; it reads `localStorage` once and is a no-op when unset.
 
 ## DOM debugging
 

@@ -1,7 +1,8 @@
 import type { Category } from "./config.js";
 import type { FileEntry } from "./matcher.js";
 import { classifyFile } from "./matcher.js";
-import { collapseFile, expandFile } from "./collapse.js";
+import { collapseFile, expandFile, searchCollapseToggle } from "./collapse.js";
+import { debug, debugEnabled } from "./debug.js";
 import { readableTextColor, safeCssColor } from "./color.js";
 import {
   rememberHeader,
@@ -147,9 +148,25 @@ export function restoreFilteredFiles(): void {
   }
 }
 
+/** Why one file did or did not move. Runs only with the debug flag set. */
+function traceFile(filename: string, header: HTMLElement | undefined, visible: boolean): void {
+  const want = visible ? "expand" : "collapse";
+  if (!header) return debug(want, filename, "— no header stored (badge never resolved it)");
+  if (!header.isConnected) return debug(want, filename, "— header is stale, will retry", header);
+
+  const { toggle, reason, levels } = searchCollapseToggle(header);
+  if (!toggle) return debug(want, filename, `— no control: ${reason}`, header);
+
+  const state = toggle.collapsed ? "collapsed" : "expanded";
+  const ours = wasCollapsedByUs(filename) ? "ours" : "not ours";
+  debug(want, filename, `— control found ${levels} level(s) up, file is ${state}, ${ours}`, toggle.button);
+}
+
 export function setFilesVisible(filenames: string[], visible: boolean): void {
   for (const filename of filenames) {
     const header = headerFor(filename);
+
+    if (debugEnabled()) traceFile(filename, header, visible);
 
     // Rule 4 in file_headers.ts: stored headers go stale, and tolerating that is the caller's
     // job. It cannot be skipped here, because a detached header is not detectably broken from

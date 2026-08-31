@@ -48,15 +48,24 @@ function describeToggle(button: HTMLElement): CollapseToggle {
   return { button, collapsed: accessibleName(button) === EXPAND_LABEL };
 }
 
-function findCollapseToggle(header: HTMLElement): CollapseToggle | null {
+/** Why the search ended where it did — for the debug log, which is the only caller. */
+export type ToggleSearch = { toggle: CollapseToggle | null; reason: string; levels: number };
+
+export function searchCollapseToggle(header: HTMLElement): ToggleSearch {
   let scope: Element | null = header;
   for (let i = 0; i <= MAX_CLIMB && scope; i++) {
     const found = Array.from(scope.querySelectorAll<HTMLElement>("button")).filter(isToggle);
-    if (found.length === 1) return describeToggle(found[0]);
-    if (found.length > 1) return null;
+    if (found.length === 1) return { toggle: describeToggle(found[0]), reason: "found", levels: i };
+    if (found.length > 1) {
+      return { toggle: null, reason: `ambiguous — ${found.length} controls in scope`, levels: i };
+    }
     scope = scope.parentElement;
   }
-  return null;
+  return { toggle: null, reason: `no control within ${MAX_CLIMB} levels`, levels: MAX_CLIMB };
+}
+
+function findCollapseToggle(header: HTMLElement): CollapseToggle | null {
+  return searchCollapseToggle(header).toggle;
 }
 
 /**

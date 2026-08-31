@@ -438,9 +438,10 @@ rather than two implementations that drift. Notes on it:
 **Placement is behavioural, not a class-name guess.** Every selector guess in this project has
 eventually broken (the anchor in v0.1.6, the badge twice since), and the Files-changed toolbar
 is client-rendered, so there is no fixture to check a guess against. `findStickyActionRow`
-looks for what the row *is*: a container with at least two controls beneath it and a
-`position: sticky | fixed` ancestor within eight levels. Of the containers that qualify, the
-highest on the page wins, and the deepest of those — the tight row, not a wrapper around it.
+looks for what the cluster *is*: a container with at least two controls beneath it and a
+`position: sticky | fixed` ancestor within eight levels. Nested containers all qualify at once
+— the tight cluster, the toolbar holding it, the row holding that — so only the **innermost**
+are kept, and the highest of those wins.
 
 Two details there are both scars:
 
@@ -451,6 +452,14 @@ Two details there are both scars:
   Primer wraps IconButtons in elements of their own, so the buttons in one visual row
   frequently do not share a parent. Counting direct children found no row at all, which is how
   the launcher ended up floating on a page whose toolbar was right there.
+- **Innermost wins, and offset is only the tiebreak.** Choosing by offset alone looks correct
+  and is not: a taller wrapper starts *above* the cluster inside it, so "highest on the page"
+  reliably picks the widest possible container. That put the launcher at the far right edge of
+  the toolbar, several hundred pixels of empty space from the buttons it belongs with.
+- **`placeIn` inserts after the last control, rather than appending to the container.** Same
+  bug from the other side: a flex row with its icons bunched at one end is much wider than
+  them, and appending lands at the far edge. The insertion point is the container's direct
+  child that holds the last control, so a wrapped button gets a sibling and not a passenger.
 
 Two exclusions carry most of the weight, and both come from getting it wrong first:
 
@@ -651,7 +660,7 @@ Static files (`manifest.json`, `popup.html`, `options.html`, `options.css`) are 
 ```bash
 pnpm install
 pnpm run build         # outputs to dist/
-pnpm test              # vitest unit tests (237 tests)
+pnpm test              # vitest unit tests (239 tests)
 ```
 
 To load in Chrome:

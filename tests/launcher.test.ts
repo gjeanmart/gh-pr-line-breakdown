@@ -161,6 +161,56 @@ describe("placing the launcher", () => {
     expect(ensureLauncher().parentElement!.id).toBe("toolbar");
   });
 
+  // GitHub's real toolbar: a full-width row, with the icon cluster bunched at the right.
+  //
+  // Both the row and the cluster qualify, and the row is *taller*, so its top offset is the
+  // smaller of the two — "highest on the page" picked the row, and appending to it left the
+  // launcher at the far right edge with a few hundred pixels of empty space beside it.
+  it("joins the icon cluster, not the full-width row that holds it", async () => {
+    document.body.innerHTML = `
+      <main>
+        <div id="toolbar" style="position: sticky">
+          <span id="viewed">0 / 11 viewed</span>
+          <button aria-label="Submit review"></button>
+          <div id="icons">
+            <button aria-label="Diff settings"></button>
+            <button aria-label="Conversations"></button>
+            <button id="last-icon" aria-label="Copilot"></button>
+          </div>
+        </div>
+      </main>`;
+    // The row starts above the cluster it contains, exactly as a taller flex parent does.
+    const rect = (top: number) => () =>
+      ({ top, bottom: 0, left: 0, right: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}) });
+    document.getElementById("toolbar")!.getBoundingClientRect = rect(10);
+    document.getElementById("icons")!.getBoundingClientRect = rect(18);
+    const { ensureLauncher } = await freshLauncher();
+
+    const button = ensureLauncher();
+
+    expect(button.parentElement!.id).toBe("icons");
+    expect(button.previousElementSibling!.id).toBe("last-icon");
+  });
+
+  // Appending to the container is not the same as sitting beside the buttons: a container can
+  // be far wider than the controls in it.
+  it("sits immediately after the last control, not at the end of the container", async () => {
+    document.body.innerHTML = `
+      <main>
+        <div style="position: sticky"><div id="icons">
+          <span><button aria-label="Conversations"></button></span>
+          <span id="last-wrapper"><button aria-label="Copilot"></button></span>
+          <span id="spacer" style="flex: 1"></span>
+        </div></div>
+      </main>`;
+    const { ensureLauncher } = await freshLauncher();
+
+    const button = ensureLauncher();
+
+    expect(button.previousElementSibling!.id).toBe("last-wrapper");
+    expect(button.nextElementSibling!.id).toBe("spacer");
+  });
+
   // The fallback is the point of the design: every class-name guess in this project has
   // eventually broken, so failing to find the toolbar must not cost the reader the feature.
   it("falls back to a floating button when there is no sticky row", async () => {

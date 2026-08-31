@@ -67,12 +67,17 @@ const INTERACTIVE = 'button, [role="button"], a[aria-label]';
 const GROUPING_DEPTH = 3;
 
 /**
- * The row of icon buttons in GitHub's sticky pull-request toolbar, found by what it *is*
+ * The cluster of icon buttons in GitHub's sticky pull-request toolbar, found by what it *is*
  * rather than by what it is called: two or more controls sharing a small container, inside the
  * page content, not part of a file header, and inside something sticky.
  *
- * Of the containers that qualify, the highest on the page wins, and the deepest of those — the
- * tight row rather than a wrapper that happens to contain it.
+ * Nested containers all qualify at once — the tight cluster, the toolbar holding it, the row
+ * holding that — so only the **innermost** are kept, and the highest of those wins.
+ *
+ * Choosing by offset alone does not work, which is worth stating because it looks like it
+ * should: a taller wrapper starts *above* the cluster inside it, so "highest on the page"
+ * reliably picks the widest possible container. That put the launcher at the far right edge of
+ * the toolbar, a few hundred pixels of empty space away from the buttons it belongs with.
  */
 function findStickyActionRow(): HTMLElement | null {
   const controls = Array.from(document.querySelectorAll<HTMLElement>(INTERACTIVE)).filter(
@@ -92,24 +97,41 @@ function findStickyActionRow(): HTMLElement | null {
     }
   }
 
-  const candidates = Array.from(beneath)
+  const qualifying = Array.from(beneath)
     .filter(([container, controlsBeneath]) => controlsBeneath.size >= 2 && hasStickyAncestor(container))
     .map(([container]) => container);
 
-  if (candidates.length === 0) return null;
+  // Keep only the innermost: drop any container that holds another qualifying one.
+  const innermost = qualifying.filter(
+    (container) => !qualifying.some((other) => other !== container && container.contains(other))
+  );
 
-  return candidates.reduce((best, container) => {
-    const top = container.getBoundingClientRect().top;
-    const bestTop = best.getBoundingClientRect().top;
-    if (top !== bestTop) return top < bestTop ? container : best;
-    return depth(container) > depth(best) ? container : best;
-  });
+  if (innermost.length === 0) return null;
+
+  return innermost.reduce((best, container) =>
+    container.getBoundingClientRect().top < best.getBoundingClientRect().top ? container : best
+  );
 }
 
-function depth(el: HTMLElement): number {
-  let levels = 0;
-  for (let scope = el.parentElement; scope; scope = scope.parentElement) levels++;
-  return levels;
+/**
+ * Sit the launcher immediately after the last control in the cluster, rather than appending it
+ * to the container. If the container turns out to be wider than its buttons — a flex row with
+ * the icons bunched at one end — appending lands the launcher at the far edge instead of next
+ * to them.
+ */
+function placeIn(row: HTMLElement, button: HTMLElement): void {
+  const controls = Array.from(row.querySelectorAll<HTMLElement>(INTERACTIVE)).filter(
+    (el) => el.id !== LAUNCHER_ID
+  );
+  const last = controls[controls.length - 1];
+
+  // The control may be wrapped; we need the wrapper that is a direct child of the container,
+  // so the launcher becomes its sibling rather than landing inside the wrapper.
+  let anchor: HTMLElement | null = last ?? null;
+  while (anchor && anchor.parentElement && anchor.parentElement !== row) anchor = anchor.parentElement;
+
+  if (anchor && anchor.parentElement === row) anchor.insertAdjacentElement("afterend", button);
+  else row.appendChild(button);
 }
 
 /**
@@ -136,7 +158,7 @@ export function ensureLauncher(): HTMLElement {
   if (row) {
     button.classList.add(HOSTED_CLASS);
     button.classList.remove(FLOATING_CLASS);
-    row.appendChild(button);
+    placeIn(row, button);
   } else {
     button.classList.add(FLOATING_CLASS);
     button.classList.remove(HOSTED_CLASS);

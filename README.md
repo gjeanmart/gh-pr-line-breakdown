@@ -138,10 +138,10 @@ The easiest way to get started is to install directly from the Chrome Web Store:
 **Quick start**
 
 ```bash
-git clone https://github.com/gjeanmart/github-line-breakdown-extension.git
-cd github-line-breakdown-extension
-ppnpm install
-ppnpm run build   # outputs to dist/
+git clone https://github.com/gjeanmart/gh-pr-line-breakdown.git
+cd gh-pr-line-breakdown
+pnpm install
+pnpm run build   # outputs to dist/
 ```
 
 Then load the unpacked extension in Chrome:
